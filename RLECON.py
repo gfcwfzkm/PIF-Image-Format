@@ -37,9 +37,6 @@ def resizeImage():
 	# (Basically avoiding to check the [image]-element's size, trying to save calls here by working with stored variables)
 	window['-IMGBOX-'].update(convToBytes(ImageToDisplay, (oldWindowSize[0] - ImageOffset[0], oldWindowSize[1] - ImageOffset[1])))
 
-
-
-
 sg.theme('Default1')
 
 menubar_layout = [
@@ -128,6 +125,7 @@ while True:
 		if values['-RB_COL_8B-'] == True:	conType = ConversionType.K256COL
 		if values['-RB_COL_16B-'] == True:	conType = ConversionType.K65COL
 		if values['-RB_COL_24B-'] == True:	conType = ConversionType.UNCHANGED
+		print(conType)
 
 	# Open  image
 	if (events == 'Open'):
@@ -158,6 +156,8 @@ while True:
 	if ((events == '-RB_COL_16B-') or (events == '-RB_COL_24B-')):
 		window['-RB_DIT_FS-'].update(disabled=True)
 		window['-RB_DIT_NO-'].update(True)
+	if ((events == '-RB_COL_CUS-') or (events == '-RB_COL_1BM-') or (events == '-RB_COL_1BI-') or (events == '-RB_COL_4BI-') or (events == '-RB_COL_8B-')):
+		window['-RB_DIT_FS-'].update(disabled=False)
 
 	# Radio button for Pixel has been (un)checked
 	if (events == '-RB_RES_PXL-'):
