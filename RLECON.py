@@ -125,6 +125,26 @@ while True:
 		if values['-RB_COL_8B-'] == True:	conType = ConversionType.K256COL
 		if values['-RB_COL_16B-'] == True:	conType = ConversionType.K65COL
 		if values['-RB_COL_24B-'] == True:	conType = ConversionType.UNCHANGED
+
+		match conType:
+			case ConversionType.MONOCHROME:
+				ImageToDisplay = OriginalImage.convert("1", dither=values['-RB_DIT_FS-'])
+			case ConversionType.INDEXED2:
+				ImageToDisplay = OriginalImage.quantize(2, palette=OriginalImage.quantize(2), dither=values['-RB_DIT_FS-'])
+			case ConversionType.INDEXED4:
+				ImageToDisplay = OriginalImage.quantize(16, palette=OriginalImage.quantize(16), dither=values['-RB_DIT_FS-'])
+			case ConversionType.K256COL:
+				palImage = PIL.Image.new('P', (16,16))
+				palList = []
+				for colors in range(256):
+					palList.extend([colors & 0b11100000, (colors & 0b00011100) << 3, (colors & 0b00000011) << 6])
+				print(len(palList))
+				palImage.putpalette(palList)
+				ImageToDisplay = OriginalImage.quantize(256, palette=palImage, dither=values['-RB_DIT_FS-'])
+			case ConversionType.UNCHANGED:
+				ImageToDisplay = OriginalImage
+
+		resizeImage()
 		print(conType)
 
 	# Open  image
@@ -132,7 +152,7 @@ while True:
 		filename = sg.popup_get_file('Open Image', no_window=True, show_hidden=False, file_types=(("Images", "*.png *.gif *.bmp *.jpg *.jpeg"),))
 		# Check if a image has been selected (aka popup returned a file path)
 		if (filename):
-			OriginalImage = PIL.Image.open(filename)
+			OriginalImage = PIL.Image.open(filename).convert("RGB")
 			ImageToDisplay = OriginalImage
 			resizeImage()
 			window['-RB_COL_24B-'].update(True)
