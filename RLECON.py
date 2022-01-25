@@ -1,3 +1,4 @@
+from ast import Or
 import PySimpleGUI as sg
 import PIL.Image
 import io
@@ -52,7 +53,7 @@ leftCol_layout = [
 		[sg.Radio('1bpp (2 Indexed Colours', 1, key='-RB_COL_1BI-', enable_events=True)],
 		[sg.Radio('4bpp (16 Indexed Colours', 1, key='-RB_COL_4BI-', enable_events=True)],
 		[sg.Radio('8bpp (256 Colours - 3R3G2B)', 1, key='-RB_COL_8B-', enable_events=True)],
-		[sg.Radio('16bpp (65586 Colours)', 1, key='-RB_COL_16B-', enable_events=True)],
+		[sg.Radio('16bpp (RGB565)', 1, key='-RB_COL_16B-', enable_events=True)],
 		[sg.Radio('24bpp (Unchanged image)', 1, key='-RB_COL_24B-', enable_events=True, default=True)]],
 		expand_x=True)
 	],
@@ -117,6 +118,7 @@ while True:
 		break
 
 	if (events == '-BTN_PREV-'):
+		if (ImageToDisplay == None): continue
 		conType = ConversionType.UNDEFINED
 		if values['-RB_COL_CUS-'] == True:	conType = ConversionType.CUSTOM
 		if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
@@ -141,8 +143,17 @@ while True:
 				print(len(palList))
 				palImage.putpalette(palList)
 				ImageToDisplay = OriginalImage.quantize(256, palette=palImage, dither=values['-RB_DIT_FS-'])
+			case ConversionType.K65COL:
+				ImageToDisplay = OriginalImage.copy()
+				for x in range(ImageToDisplay.width):
+					for y in range(ImageToDisplay.height):
+						color = list(ImageToDisplay.getpixel((x,y)))
+						color[0] = color[0] & 0xF8
+						color[1] = color[1] & 0xFC
+						color[2] = color[2] & 0xF8
+						ImageToDisplay.putpixel((x,y), tuple(color))
 			case ConversionType.UNCHANGED:
-				ImageToDisplay = OriginalImage
+				ImageToDisplay = OriginalImage.copy()
 
 		resizeImage()
 		print(conType)
