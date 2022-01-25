@@ -1,4 +1,3 @@
-from ast import Or
 import PySimpleGUI as sg
 import PIL.Image
 import io
@@ -38,17 +37,50 @@ def resizeImage():
 	# (Basically avoiding to check the [image]-element's size, trying to save calls here by working with stored variables)
 	window['-IMGBOX-'].update(convToBytes(ImageToDisplay, (oldWindowSize[0] - ImageOffset[0], oldWindowSize[1] - ImageOffset[1])))
 
+def convertImage(image, resize, conversion, dithering):
+	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
+	ImageToReturn = image.copy()
+	match conversion:
+		case ConversionType.MONOCHROME:
+			ImageToReturn = ImageToProcess.convert("1", dither=dithering)
+		case ConversionType.INDEXED2:
+			ImageToReturn = ImageToProcess.quantize(2, palette=ImageToProcess.quantize(2), dither=dithering)
+		case ConversionType.INDEXED4:
+			ImageToReturn = ImageToProcess.quantize(16, palette=ImageToProcess.quantize(16), dither=dithering)
+		case ConversionType.K256COL:
+			palImage = PIL.Image.new('P', (16,16))
+			palList = []
+			for colors in range(256):
+				palList.extend([colors & 0b11100000, (colors & 0b00011100) << 3, (colors & 0b00000011) << 6])
+			print(len(palList))
+			palImage.putpalette(palList)
+			ImageToReturn = ImageToProcess.quantize(256, palette=palImage, dither=dithering)
+		case ConversionType.K65COL:
+			ImageToReturn = ImageToProcess.copy()
+			for x in range(ImageToReturn.width):
+				for y in range(ImageToReturn.height):
+					color = list(ImageToReturn.getpixel((x,y)))
+					color[0] = color[0] & 0xF8
+					color[1] = color[1] & 0xFC
+					color[2] = color[2] & 0xF8
+					ImageToReturn.putpixel((x,y), tuple(color))
+		case ConversionType.UNCHANGED:
+			ImageToReturn = ImageToProcess.copy()
+	del ImageToProcess
+	return ImageToReturn
+
+
 sg.theme('Default1')
 
 menubar_layout = [
 	['&File', ['&Open','&Quit']],
-	['&Settings', ['&Configure custom option']],
+#	['&Settings', ['&Configure custom option']],
 	['&Help', ['&About']]
 ]
 
 leftCol_layout = [
 	[sg.Frame('Colour Settings', [
-		[sg.Radio('Custom Configuration', 1, key='-RB_COL_CUS-', enable_events=True)],
+		[sg.Radio('Custom Configuration', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True)],
 		[sg.Radio('1bpp (Monochrome B/W)', 1, key='-RB_COL_1BM-', enable_events=True)],
 		[sg.Radio('1bpp (2 Indexed Colours', 1, key='-RB_COL_1BI-', enable_events=True)],
 		[sg.Radio('4bpp (16 Indexed Colours', 1, key='-RB_COL_4BI-', enable_events=True)],
@@ -68,10 +100,9 @@ leftCol_layout = [
 		expand_x=True)
 	],
 	[sg.Frame('Image Resize', [
-		[sg.Radio('Pixel', 4, key='-RB_RES_PXL-', enable_events=True, default=True), 
-		sg.Radio('Percentage', 4, key='-RB_RES_PRC-', enable_events=True)],
-		[sg.Text('W:'), sg.Input(key='-IN_SIZE_X-', size=(8,1)), sg.Text('H:'), sg.Input(key='-IN_SIZE_Y-', size=(8,1))],
-		[sg.Checkbox('Lock Ratio', key='-CB_RAT-', enable_events=True, default=True)]],
+#		[sg.Radio('Pixel', 4, key='-RB_RES_PXL-', enable_events=True, default=True),sg.Radio('Percentage', 4, key='-RB_RES_PRC-', enable_events=True)],
+		[sg.Text('W:'), sg.Input(key='-IN_SIZE_X-', size=(8,1), enable_events=True), sg.Text('H:'), sg.Input(key='-IN_SIZE_Y-', size=(8,1), enable_events=True)],
+		[sg.Checkbox('Lock Ratio', key='-CB_RAT-', default=True)]],
 		expand_x=True)
 	],
 	[sg.VPush()],
@@ -116,7 +147,8 @@ while True:
 	# Quit Application
 	if (events == sg.WIN_CLOSED or events == 'Quit'):
 		break
-
+	
+	# Show preview of the current settings
 	if (events == '-BTN_PREV-'):
 		if (ImageToDisplay == None): continue
 		conType = ConversionType.UNDEFINED
@@ -128,35 +160,9 @@ while True:
 		if values['-RB_COL_16B-'] == True:	conType = ConversionType.K65COL
 		if values['-RB_COL_24B-'] == True:	conType = ConversionType.UNCHANGED
 
-		match conType:
-			case ConversionType.MONOCHROME:
-				ImageToDisplay = OriginalImage.convert("1", dither=values['-RB_DIT_FS-'])
-			case ConversionType.INDEXED2:
-				ImageToDisplay = OriginalImage.quantize(2, palette=OriginalImage.quantize(2), dither=values['-RB_DIT_FS-'])
-			case ConversionType.INDEXED4:
-				ImageToDisplay = OriginalImage.quantize(16, palette=OriginalImage.quantize(16), dither=values['-RB_DIT_FS-'])
-			case ConversionType.K256COL:
-				palImage = PIL.Image.new('P', (16,16))
-				palList = []
-				for colors in range(256):
-					palList.extend([colors & 0b11100000, (colors & 0b00011100) << 3, (colors & 0b00000011) << 6])
-				print(len(palList))
-				palImage.putpalette(palList)
-				ImageToDisplay = OriginalImage.quantize(256, palette=palImage, dither=values['-RB_DIT_FS-'])
-			case ConversionType.K65COL:
-				ImageToDisplay = OriginalImage.copy()
-				for x in range(ImageToDisplay.width):
-					for y in range(ImageToDisplay.height):
-						color = list(ImageToDisplay.getpixel((x,y)))
-						color[0] = color[0] & 0xF8
-						color[1] = color[1] & 0xFC
-						color[2] = color[2] & 0xF8
-						ImageToDisplay.putpixel((x,y), tuple(color))
-			case ConversionType.UNCHANGED:
-				ImageToDisplay = OriginalImage.copy()
+		ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
 
 		resizeImage()
-		print(conType)
 
 	# Open  image
 	if (events == 'Open'):
@@ -196,13 +202,9 @@ while True:
 		if (not ImageToDisplay == None):
 			imgXpx = int(ImageToDisplay.size[0])
 			imgYpx = int(ImageToDisplay.size[1])
-			print(imgXpx,imgYpx)
 
 			window['-IN_SIZE_X-'].update(imgXpx)
 			window['-IN_SIZE_Y-'].update(imgYpx)
-
-			if (events == '-CB_RAT-'):
-				print("DoStuff")
 	
 	# Radio Button for Percentage has been (un)checked
 	if (events == '-RB_RES_PRC-'):
@@ -210,17 +212,29 @@ while True:
 		if (not ImageToDisplay == None):
 			imgXpx = int(ImageToDisplay.size[0])
 			imgYpx = int(ImageToDisplay.size[1])
-			print(imgXpx,imgYpx)
 
 			window['-IN_SIZE_X-'].update(100)
 			window['-IN_SIZE_Y-'].update(100)
-
-	# Checkbox for Ratio has been (un)checked
-	if (events == '-CB_RAT-'):
-		print(events, values['-CB_RAT-'])
+	
+	# Check pixel input if valid, and add ratio if required
+	if (events == '-IN_SIZE_X-'):
 		if (not ImageToDisplay == None):
-			print("DoStuff")
+			try:
+				value = (int)(values['-IN_SIZE_X-'])
+				if (values['-CB_RAT-'] == True):
+					window['-IN_SIZE_Y-'].update(int(value * (OriginalImage.size[1] / OriginalImage.size[0])))
+			except:
+				window['-IN_SIZE_X-'].update(int(OriginalImage.size[0]))
+	
+	# Check pixel input if valid, and add ratio if required
+	if (events == '-IN_SIZE_Y-'):
+		if (not ImageToDisplay == None):
+			try:
+				value = (int)(values['-IN_SIZE_Y-'])
+				if (values['-CB_RAT-'] == True):
+					window['-IN_SIZE_X-'].update(int(value / (OriginalImage.size[1] / OriginalImage.size[0])))
+			except:
+				window['-IN_SIZE_Y-'].update(int(OriginalImage.size[1]))
 
 
 window.close()
-print("Application quit")
