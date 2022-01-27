@@ -1,8 +1,8 @@
-import PySimpleGUI as sg
-import PIL.Image
+import PySimpleGUI as sg	# pip install pysimplegui
+import PIL.Image			# pip install pillow
+from enum import Enum		# requires python 3.10 or higher
 import io
 import threading
-from enum import Enum
 
 THREADWAIT = 0.1
 
@@ -43,8 +43,6 @@ def convertImage(image, resize, conversion, dithering):
 	match conversion:
 		case ConversionType.MONOCHROME:
 			ImageToReturn = ImageToProcess.convert("1", dither=dithering)
-		case ConversionType.INDEXED2:
-			ImageToReturn = ImageToProcess.quantize(2, palette=ImageToProcess.quantize(2), dither=dithering)
 		case ConversionType.INDEXED4:
 			ImageToReturn = ImageToProcess.quantize(16, palette=ImageToProcess.quantize(16), dither=dithering)
 		case ConversionType.K256COL:
@@ -89,9 +87,8 @@ def main():
 		[sg.Frame('Colour Settings', [
 			[sg.Radio('Custom', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
 			[sg.Radio('1bpp (Monochrome B/W)', 1, key='-RB_COL_1BM-', enable_events=True)],
-			[sg.Radio('1bpp (2 Indexed Colours', 1, key='-RB_COL_1BI-', enable_events=True)],
-			[sg.Radio('4bpp (16 Indexed Colours', 1, key='-RB_COL_4BI-', enable_events=True)],
-			[sg.Radio('8bpp (256 Colours - 3R3G2B)', 1, key='-RB_COL_8B-', enable_events=True)],
+			[sg.Radio('4bpp (16 fixed Colors', 1, key='-RB_COL_4BI-', enable_events=True)],
+			[sg.Radio('8bpp (256 Colors - 3R3G2B)', 1, key='-RB_COL_8B-', enable_events=True)],
 			[sg.Radio('16bpp (RGB565)', 1, key='-RB_COL_16B-', enable_events=True)],
 			[sg.Radio('24bpp (Unchanged image)', 1, key='-RB_COL_24B-', enable_events=True, default=True)]],
 			expand_x=True)
