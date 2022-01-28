@@ -17,7 +17,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
 
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
- - [ ] Image Converter Tool
+ - [ ] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
 	- [ ] Saving as .PIF

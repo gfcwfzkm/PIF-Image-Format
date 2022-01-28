@@ -1,3 +1,4 @@
+from operator import mod
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 from enum import Enum		# requires python 3.10 or higher
@@ -6,16 +7,44 @@ import threading
 
 THREADWAIT = 0.1
 
+# CGA / 16 Color palette generated with the following formula:
+# red   = 2/3×(colorNumber & 4)/4 + 1/3×(colorNumber & 8)/8 * 255
+# green = 2/3×(colorNumber & 2)/2 + 1/3×(colorNumber & 8)/8 * 255
+# blue  = 2/3×(colorNumber & 1)/1 + 1/3×(colorNumber & 8)/8 * 255
+WINDOWS16COLORPAL = [
+	0, 0, 0,		# black
+	0, 0, 170,		# blue
+	0, 170, 0,		# green
+	0, 170, 170,	# cyan
+	170, 0, 0,		# red
+	170, 0, 170,	# magenta
+	170, 170, 0,	# dark yellow
+	170, 170, 170,	# light gray
+	85, 85, 85,		# dark gray
+	85, 85, 255,	# light blue
+	85, 255, 85,	# light green
+	85, 255, 255,	# light cyan
+	255, 85, 85,	# light red
+	255, 85, 255,	# light magenta
+	255, 255, 85,	# yellow
+	255, 255, 255	# white
+]
+# 0b0010 1100 = 0x2C
+# Image display: 00xx0x00
+# Image display: 00x0xx00
+
 class ConversionType(Enum):
-	UNDEFINED=0
-	CUSTOM=1
-	MONOCHROME=2
-	INDEXED2=3
-	INDEXED4=4
-	INDEXED8=5
-	K256COL=6
-	K65COL=7
-	UNCHANGED=8
+	UNDEFINED	= 0
+	INDEXED		= 1
+	MONOCHROME 	= 2
+	RGB16C		= 3
+	RGB332 		= 4
+	RGB565 		= 5
+	RGB888 		= 6
+
+class CompressionType(Enum):
+	NO_COMPRESSION 	= 0
+	RLE_COMPRESSION = 1
 
 def convToBytes(image, resize=None):
 	img = image.copy()
@@ -43,16 +72,20 @@ def convertImage(image, resize, conversion, dithering):
 	match conversion:
 		case ConversionType.MONOCHROME:
 			ImageToReturn = ImageToProcess.convert("1", dither=dithering)
-		case ConversionType.INDEXED4:
-			ImageToReturn = ImageToProcess.quantize(16, palette=ImageToProcess.quantize(16), dither=dithering)
-		case ConversionType.K256COL:
+		case ConversionType.RGB16C:
+			palImage = PIL.Image.new('P', (16,16))
+			palList = WINDOWS16COLORPAL.copy()
+			palList.extend(palList[:3] * 240)
+			palImage.putpalette(palList)
+			ImageToReturn = ImageToProcess.quantize(16, palette=palImage, dither=dithering)
+		case ConversionType.RGB332:
 			palImage = PIL.Image.new('P', (16,16))
 			palList = []
 			for colors in range(256):
 				palList.extend([colors & 0b11100000, (colors & 0b00011100) << 3, (colors & 0b00000011) << 6])
 			palImage.putpalette(palList)
 			ImageToReturn = ImageToProcess.quantize(256, palette=palImage, dither=dithering)
-		case ConversionType.K65COL:
+		case ConversionType.RGB565:
 			ImageToReturn = ImageToProcess.copy()
 			for x in range(ImageToReturn.width):
 				for y in range(ImageToReturn.height):
@@ -61,10 +94,101 @@ def convertImage(image, resize, conversion, dithering):
 					color[1] = color[1] & 0xFC
 					color[2] = color[2] & 0xF8
 					ImageToReturn.putpixel((x,y), tuple(color))
-		case ConversionType.UNCHANGED:
+		case ConversionType.RGB888:
 			ImageToReturn = ImageToProcess.copy()
 	del ImageToProcess
 	return ImageToReturn
+
+def getBinaryImage(image, resize, conversion, dithering, compression):
+	class CompressionMode(Enum):
+		NOTHING	= 0
+		PREPARE = 1
+		REPEATIVE = 2
+		INDIVIDUAL = 3
+	
+	imageHeader = []
+	colorTable = []
+	imageData = []
+	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
+	TemporaryImage = image.copy()
+	match conversion:
+		case ConversionType.MONOCHROME:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			tempByte = 0x00
+			tempCnt = 0x00
+			posRLE = 0	# Memorise the position for the RLE cursor
+			cntRLE = 1	# Counter of the bytes that are individual or not individual
+			modeRLE = CompressionMode.NOTHING
+
+			for x in range(TemporaryImage.width):
+				for y in range(TemporaryImage.height):
+					color = TemporaryImage.getpixel((x,y))
+					if (color):
+						tempByte = tempByte | (1 << tempCnt)
+					tempCnt = tempCnt + 1
+					if (tempCnt >= 8):
+						if (not compression):
+							imageData.append(tempByte)
+							tempByte = 0
+							tempCnt = 0
+						else:
+							# A negative value defines that the next x-amount of Pixels are individual
+							# pixels. A positive value defines that the next Pixel repeats x-times.
+							# Zero is a illegal RLE value.
+							match modeRLE:
+								case CompressionMode.NOTHING:
+									imageData.append(0)
+									posRLE = len(imageData) - 1
+									cntRLE = 1
+									imageData.append(tempByte)
+									modeRLE = CompressionMode.PREPARE
+								case CompressionMode.PREPARE:
+									if (tempByte == imageData[len(imageData) - 1]):
+										modeRLE = CompressionMode.REPEATIVE
+										imageData.append(tempByte)
+									else:
+										modeRLE = CompressionMode.INDIVIDUAL
+									cntRLE = cntRLE + 1
+									cntRLE = cntRLE * -1
+								case CompressionMode.REPEATIVE:
+									if (tempByte == imageData[len(imageData) - 1]):
+										cntRLE = cntRLE + 1
+										if (cntRLE == 127):
+											imageData[posRLE] = cntRLE
+											modeRLE = CompressionMode.NOTHING
+									else:
+										imageData[posRLE] = cntRLE
+										imageData.append(0)
+										posRLE = len(imageData) - 1
+										cntRLE = 1
+										imageData.append(tempByte)
+										modeRLE = CompressionMode.PREPARE
+								case CompressionMode.INDIVIDUAL:
+									if (not tempByte == imageData[len(imageData) - 1]):
+										imageData.append(tempByte)
+										cntRLE = cntRLE - 1
+										if (cntRLE == -127):
+											imageData[posRLE] = cntRLE
+											modeRLE = CompressionMode.NOTHING
+									else:
+										imageData[posRLE] = cntRLE
+										modeRLE = CompressionMode.NOTHING
+
+			if (tempCnt > 0):
+				imageData.append(tempByte)
+		case ConversionType.RGB16C:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB332:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB565:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB888:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+	print(len(imageData))
 
 def open_window():
     layout = [[sg.Text("New Window", key="new")]]
@@ -87,10 +211,10 @@ def main():
 		[sg.Frame('Colour Settings', [
 			[sg.Radio('Custom', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
 			[sg.Radio('1bpp (Monochrome B/W)', 1, key='-RB_COL_1BM-', enable_events=True)],
-			[sg.Radio('4bpp (16 fixed Colors', 1, key='-RB_COL_4BI-', enable_events=True)],
-			[sg.Radio('8bpp (256 Colors - 3R3G2B)', 1, key='-RB_COL_8B-', enable_events=True)],
-			[sg.Radio('16bpp (RGB565)', 1, key='-RB_COL_16B-', enable_events=True)],
-			[sg.Radio('24bpp (Unchanged image)', 1, key='-RB_COL_24B-', enable_events=True, default=True)]],
+			[sg.Radio('4bpp (16 fixed Colors', 1, key='-RB_COL_4C-', enable_events=True)],
+			[sg.Radio('8bpp (256 Colors - RGB332)', 1, key='-RB_COL_8B-', enable_events=True)],
+			[sg.Radio('16bpp (64k Colors - RGB565)', 1, key='-RB_COL_16B-', enable_events=True)],
+			[sg.Radio('24bpp (RGB888)', 1, key='-RB_COL_24B-', enable_events=True, default=True)]],
 			expand_x=True)
 		],
 		[sg.Frame('Compression Type', [
@@ -135,7 +259,6 @@ def main():
 	window['-IMGBOX-'].expand(True, True)
 	window.bring_to_front()
 
-	oldWindowSize = window.size
 	# Calculate the space between the window and the image control itself. Will be used to set the image's size
 	ImageOffset = (window.size[0] - window['-IMGBOX-'].get_size()[0], window.size[1] - window['-IMGBOX-'].get_size()[1])
 
@@ -157,16 +280,16 @@ def main():
 		if (events == '-BTN_PREV-'):
 			if (ImageToDisplay == None): continue
 			conType = ConversionType.UNDEFINED
-			if values['-RB_COL_CUS-'] == True:	conType = ConversionType.CUSTOM
+			if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
 			if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
-			if values['-RB_COL_1BI-'] == True:	conType = ConversionType.INDEXED2
-			if values['-RB_COL_4BI-'] == True:	conType = ConversionType.INDEXED4
-			if values['-RB_COL_8B-'] == True:	conType = ConversionType.K256COL
-			if values['-RB_COL_16B-'] == True:	conType = ConversionType.K65COL
-			if values['-RB_COL_24B-'] == True:	conType = ConversionType.UNCHANGED
+			if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
+			if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
+			if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
+			if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
 
 			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
+			# getBinaryImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], False)
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
@@ -201,7 +324,7 @@ def main():
 		if ((events == '-RB_COL_16B-') or (events == '-RB_COL_24B-')):
 			window['-RB_DIT_FS-'].update(disabled=True)
 			window['-RB_DIT_NO-'].update(True)
-		if ((events == '-RB_COL_CUS-') or (events == '-RB_COL_1BM-') or (events == '-RB_COL_1BI-') or (events == '-RB_COL_4BI-') or (events == '-RB_COL_8B-')):
+		if ((events == '-RB_COL_CUS-') or (events == '-RB_COL_1BM-') or (events == '-RB_COL_4C-') or (events == '-RB_COL_8B-')):
 			window['-RB_DIT_FS-'].update(disabled=False)
 
 		# Radio button for Pixel has been (un)checked
