@@ -118,10 +118,11 @@ def getBinaryImage(image, resize, conversion, dithering, compression):
 			tempCnt = 0x00
 			posRLE = 0	# Memorise the position for the RLE cursor
 			cntRLE = 1	# Counter of the bytes that are individual or not individual
+			color = 0
 			modeRLE = CompressionMode.NOTHING
 
-			for x in range(TemporaryImage.width):
-				for y in range(TemporaryImage.height):
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
 					color = TemporaryImage.getpixel((x,y))
 					if (color):
 						tempByte = tempByte | (1 << tempCnt)
@@ -129,8 +130,6 @@ def getBinaryImage(image, resize, conversion, dithering, compression):
 					if (tempCnt >= 8):
 						if (not compression):
 							imageData.append(tempByte)
-							tempByte = 0
-							tempCnt = 0
 						else:
 							# A negative value defines that the next x-amount of Pixels are individual
 							# pixels. A positive value defines that the next Pixel repeats x-times.
@@ -145,11 +144,12 @@ def getBinaryImage(image, resize, conversion, dithering, compression):
 								case CompressionMode.PREPARE:
 									if (tempByte == imageData[len(imageData) - 1]):
 										modeRLE = CompressionMode.REPEATIVE
-										imageData.append(tempByte)
+										cntRLE = cntRLE + 1
 									else:
 										modeRLE = CompressionMode.INDIVIDUAL
-									cntRLE = cntRLE + 1
-									cntRLE = cntRLE * -1
+										cntRLE = cntRLE + 1
+										cntRLE = cntRLE * -1
+										imageData.append(tempByte)
 								case CompressionMode.REPEATIVE:
 									if (tempByte == imageData[len(imageData) - 1]):
 										cntRLE = cntRLE + 1
@@ -172,7 +172,12 @@ def getBinaryImage(image, resize, conversion, dithering, compression):
 											modeRLE = CompressionMode.NOTHING
 									else:
 										imageData[posRLE] = cntRLE
-										modeRLE = CompressionMode.NOTHING
+										posRLE = len(imageData) - 1
+										cntRLE = 1
+										imageData.append(tempByte)
+										modeRLE = CompressionMode.REPEATIVE
+						tempByte = 0
+						tempCnt = 0
 
 			if (tempCnt > 0):
 				imageData.append(tempByte)
@@ -289,7 +294,7 @@ def main():
 
 			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
-			# getBinaryImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], False)
+			getBinaryImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
