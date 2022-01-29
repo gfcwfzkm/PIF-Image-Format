@@ -179,8 +179,11 @@ def getBinaryImage(image, resize, conversion, dithering, compression):
 						tempByte = 0
 						tempCnt = 0
 
-			if (tempCnt > 0):
-				imageData.append(tempByte)
+			if (not compression):
+				if (tempCnt > 0):
+					imageData.append(tempByte)
+			else:
+				imageData[posRLE] = cntRLE
 		case ConversionType.RGB16C:
 			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
 			print(TemporaryImage)
