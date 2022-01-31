@@ -1,9 +1,12 @@
+from bz2 import compress
 from operator import mod
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 from enum import Enum		# requires python 3.10 or higher
 import io
 import threading
+
+from numpy import imag
 
 THREADWAIT = 0.1
 
@@ -99,105 +102,116 @@ def convertImage(image, resize, conversion, dithering):
 	del ImageToProcess
 	return ImageToReturn
 
-def getBinaryImage(image, resize, conversion, dithering, compression):
+def rle_compress(pixelArray):
+	# Todo: Image compression
+	return pixelArray
+
+def convertToPIF(image, resize, conversion, dithering, compression):
 	class CompressionMode(Enum):
 		NOTHING	= 0
 		PREPARE = 1
 		REPEATIVE = 2
 		INDIVIDUAL = 3
+	class ImageH(Enum):
+		IMAGETYPE = 0
+		BITSPERPIXEL = 1
+		IMAGEWIDTH = 2
+		IMAGEHEIGHT = 3
+		IMAGESIZE = 4
+		COLTABLESIZE = 5
+		COMPRTYPE = 6
 	
-	imageHeader = []
+	imageHeader = [0,0,0,0,0,0,0]
 	colorTable = []
+	# Image Data contains the pixels in word-size (min 1 byte, max 3 bytes)
+	# Proper conversion done when saving the data, BITSPERPIXEL to process correctly
 	imageData = []
-	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
+
+	imageWord = 0
+	imageCnt = 0
+	color = 0
+
 	TemporaryImage = image.copy()
+
+	#Write the image header with the information we already have
+	imageHeader[ImageH.IMAGEWIDTH] = TemporaryImage.width
+	imageHeader[ImageH.IMAGEHEIGHT] = TemporaryImage.height
+	if (compression):
+		imageHeader[ImageH.COMPRTYPE] = 0x7DDE
+
+	if ((conversion != ConversionType.RGB888) and (conversion != ConversionType.RGB565)):
+		TemporaryImage = convertImage(image, resize, conversion, dithering)
+	else:
+		TemporaryImage = convertImage(image, resize, ConversionType.RGB888, dithering)
+
 	match conversion:
 		case ConversionType.MONOCHROME:
-			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
-			tempByte = 0x00
-			tempCnt = 0x00
-			posRLE = 0	# Memorise the position for the RLE cursor
-			cntRLE = 1	# Counter of the bytes that are individual or not individual
-			color = 0
-			modeRLE = CompressionMode.NOTHING
-
+			# Write the Image Type and Bits per Pixel into the imageHeader
+			imageHeader[ImageH.IMAGETYPE] = 0x7DAA	# B/W mode selected
+			imageHeader[ImageH.BITSPERPIXEL] = 8		# 8 Bits per Pixel
+			# Check every pixel and pack to a group of 8 within a byte
 			for y in range(TemporaryImage.height):
 				for x in range(TemporaryImage.width):
 					color = TemporaryImage.getpixel((x,y))
-					if (color):
-						tempByte = tempByte | (1 << tempCnt)
-					tempCnt = tempCnt + 1
-					if (tempCnt >= 8):
-						if (not compression):
-							imageData.append(tempByte)
-						else:
-							# A negative value defines that the next x-amount of Pixels are individual
-							# pixels. A positive value defines that the next Pixel repeats x-times.
-							# Zero is a illegal RLE value.
-							match modeRLE:
-								case CompressionMode.NOTHING:
-									imageData.append(0)
-									posRLE = len(imageData) - 1
-									cntRLE = 1
-									imageData.append(tempByte)
-									modeRLE = CompressionMode.PREPARE
-								case CompressionMode.PREPARE:
-									if (tempByte == imageData[len(imageData) - 1]):
-										modeRLE = CompressionMode.REPEATIVE
-										cntRLE = cntRLE + 1
-									else:
-										modeRLE = CompressionMode.INDIVIDUAL
-										cntRLE = cntRLE + 1
-										cntRLE = cntRLE * -1
-										imageData.append(tempByte)
-								case CompressionMode.REPEATIVE:
-									if (tempByte == imageData[len(imageData) - 1]):
-										cntRLE = cntRLE + 1
-										if (cntRLE == 127):
-											imageData[posRLE] = cntRLE
-											modeRLE = CompressionMode.NOTHING
-									else:
-										imageData[posRLE] = cntRLE
-										imageData.append(0)
-										posRLE = len(imageData) - 1
-										cntRLE = 1
-										imageData.append(tempByte)
-										modeRLE = CompressionMode.PREPARE
-								case CompressionMode.INDIVIDUAL:
-									if (not tempByte == imageData[len(imageData) - 1]):
-										imageData.append(tempByte)
-										cntRLE = cntRLE - 1
-										if (cntRLE == -127):
-											imageData[posRLE] = cntRLE
-											modeRLE = CompressionMode.NOTHING
-									else:
-										imageData[posRLE] = cntRLE
-										posRLE = len(imageData) - 1
-										cntRLE = 1
-										imageData.append(tempByte)
-										modeRLE = CompressionMode.REPEATIVE
-						tempByte = 0
-						tempCnt = 0
-
-			if (not compression):
-				if (tempCnt > 0):
-					imageData.append(tempByte)
-			else:
-				imageData[posRLE] = cntRLE
+					if (color): # 0 = black, 255 = white
+						imageWord = imageWord | (1 << imageWord)
+					imageCnt = imageCnt + 1
+					if (imageCnt >= 8):
+						imageData.append(imageWord)
+						imageWord = 0
+						imageCnt = 0
+			# Add remaining Pixels, if there are any
+			if (imageCnt > 0):
+				imageData.append(imageWord)
 		case ConversionType.RGB16C:
-			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			# Check every pixel and pack to a group of 2 within a byte
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
+					color = TemporaryImage.getpixel((x,y))
+					# Check which of the 16 colors is used to return a value between 0 and 15
+					for col in range(16):
+						if (color == WINDOWS16COLORPAL[(col*3):3]):
+							imageWord = imageWord | (col << ((imageCnt % 2) * 4))
+							imageCnt = imageCnt + 1
+							if (imageCnt >= 2):
+								imageData.append(imageWord)
+								imageWord = 0
+								imageCnt = 0
+			# Add remaining Pixels, if there are any
+			if (imageCnt > 0):
+				imageData.append(imageWord)
 			print(TemporaryImage)
 		case ConversionType.RGB332:
-			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
 			print(TemporaryImage)
 		case ConversionType.RGB565:
-			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			# Relatively easy here, just trim the 24-bit RGB image to 16-bit RGB
+			# and add it to the list
+			for x in range(TemporaryImage.width):
+				for y in range(TemporaryImage.height):
+					color = list(TemporaryImage.getpixel((x,y)))
+					color[0] = color[0] & 0xF8	# R
+					color[1] = color[1] & 0xFC	# G
+					color[2] = color[2] & 0xF8	# B
+					imageData.append((color[0] << 8) | (color[1] << 5) | (color[2]))
 			print(TemporaryImage)
 		case ConversionType.RGB888:
-			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
-			print(TemporaryImage)
-	print(len(imageData))
+			# Fit the color into 24bit and add it to the list
+			for x in range(TemporaryImage.width):
+				for y in range(TemporaryImage.height):
+					color = list(TemporaryImage.getpixel((x,y)))
+					imageData.append((color[0] << 16) | (color[1] << 8) | (color[2]))
+	
+	# compress the data if requested
+	if (compression):
+		imageData = rle_compress(imageData)
 
+	# Write down the image size into the header
+	imageHeader[ImageH.IMAGESIZE] = len(imageData)
+
+	# Return the image header, color table and image data
+	return imageHeader,colorTable,imageData
+
+#ToDo: Indexing option window
 def open_window():
     layout = [[sg.Text("New Window", key="new")]]
     window = sg.Window("Second Window", layout, modal=True)
@@ -297,7 +311,7 @@ def main():
 
 			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
-			getBinaryImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
+			convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):

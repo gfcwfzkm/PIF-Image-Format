@@ -1,0 +1,98 @@
+def getBinaryImage(image, resize, conversion, dithering, compression):
+	class CompressionMode(Enum):
+		NOTHING	= 0
+		PREPARE = 1
+		REPEATIVE = 2
+		INDIVIDUAL = 3
+	
+	imageHeader = []
+	colorTable = []
+	imageData = []
+	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
+	TemporaryImage = image.copy()
+	match conversion:
+		case ConversionType.MONOCHROME:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			tempByte = 0x00
+			tempCnt = 0x00
+			posRLE = 0	# Memorise the position for the RLE cursor
+			cntRLE = 1	# Counter of the bytes that are individual or not individual
+			color = 0
+			modeRLE = CompressionMode.NOTHING
+
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
+					color = TemporaryImage.getpixel((x,y))
+					if (color):
+						tempByte = tempByte | (1 << tempCnt)
+					tempCnt = tempCnt + 1
+					if (tempCnt >= 8):
+						if (not compression):
+							imageData.append(tempByte)
+						else:
+							# A negative value defines that the next x-amount of Pixels are individual
+							# pixels. A positive value defines that the next Pixel repeats x-times.
+							# Zero is a illegal RLE value.
+							match modeRLE:
+								case CompressionMode.NOTHING:
+									imageData.append(0)
+									posRLE = len(imageData) - 1
+									cntRLE = 1
+									imageData.append(tempByte)
+									modeRLE = CompressionMode.PREPARE
+								case CompressionMode.PREPARE:
+									if (tempByte == imageData[len(imageData) - 1]):
+										modeRLE = CompressionMode.REPEATIVE
+										cntRLE = cntRLE + 1
+									else:
+										modeRLE = CompressionMode.INDIVIDUAL
+										cntRLE = cntRLE + 1
+										cntRLE = cntRLE * -1
+										imageData.append(tempByte)
+								case CompressionMode.REPEATIVE:
+									if (tempByte == imageData[len(imageData) - 1]):
+										cntRLE = cntRLE + 1
+										if (cntRLE == 127):
+											imageData[posRLE] = cntRLE
+											modeRLE = CompressionMode.NOTHING
+									else:
+										imageData[posRLE] = cntRLE
+										imageData.append(0)
+										posRLE = len(imageData) - 1
+										cntRLE = 1
+										imageData.append(tempByte)
+										modeRLE = CompressionMode.PREPARE
+								case CompressionMode.INDIVIDUAL:
+									if (not tempByte == imageData[len(imageData) - 1]):
+										imageData.append(tempByte)
+										cntRLE = cntRLE - 1
+										if (cntRLE == -127):
+											imageData[posRLE] = cntRLE
+											modeRLE = CompressionMode.NOTHING
+									else:
+										imageData[posRLE] = cntRLE
+										posRLE = len(imageData) - 1
+										cntRLE = 1
+										imageData.append(tempByte)
+										modeRLE = CompressionMode.REPEATIVE
+						tempByte = 0
+						tempCnt = 0
+
+			if (not compression):
+				if (tempCnt > 0):
+					imageData.append(tempByte)
+			else:
+				imageData[posRLE] = cntRLE
+		case ConversionType.RGB16C:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB332:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB565:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+		case ConversionType.RGB888:
+			TemporaryImage = ImageToProcess.convert("1", dither=dithering)
+			print(TemporaryImage)
+	print(len(imageData))
