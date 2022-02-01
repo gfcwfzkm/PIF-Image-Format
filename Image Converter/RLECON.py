@@ -6,8 +6,6 @@ from enum import Enum		# requires python 3.10 or higher
 import io
 import threading
 
-from numpy import imag
-
 THREADWAIT = 0.1
 
 # CGA / 16 Color palette generated with the following formula:
@@ -103,8 +101,69 @@ def convertImage(image, resize, conversion, dithering):
 	return ImageToReturn
 
 def rle_compress(pixelArray):
-	# Todo: Image compression
-	return pixelArray
+	outlist = []
+	tempArray = [None]*129
+	outCnt = 1
+	pixCnt = 0
+
+	tempArray[0] = pixelArray[pixCnt]
+	pixCnt += 1
+
+	while (pixCnt < len(pixelArray)):
+
+		if (pixCnt < len(pixelArray)):
+			tempArray[1] = pixelArray[pixCnt]
+		else:
+			tempArray[1] = None
+		pixCnt += 1
+
+		# Check if a compressible sequence starts or not
+		if (tempArray[0] != tempArray[1]):
+			# Uncompressible sequence!
+			outCnt = 1
+		
+			# Check if there is more data to read
+			if (pixCnt < len(pixelArray)):
+				# More data to read!
+				# Run this loop as long as there is still data to read, the counter being below 128 AND 
+				# the previous read word isn't the same as the one before
+				while True:
+					outCnt += 1
+					tempArray[outCnt] = pixelArray[pixCnt]
+					pixCnt += 1
+					# Makeshift "Do-While" loop
+					if not (pixCnt < len(pixelArray)):
+						outCnt += 1
+						break
+					elif not ((outCnt < 128) and(tempArray[outCnt] != tempArray[outCnt - 1])):
+						break
+
+			keep = tempArray[outCnt]
+			if (tempArray[outCnt] == tempArray[outCnt - 1]):
+				outCnt -= 1
+			
+			#Add to list
+			outlist.append(outCnt * -1)
+			outlist.extend(tempArray[:outCnt])
+			
+			tempArray[0] = tempArray[outCnt]
+			if (not keep):
+				continue
+		
+		# Compressible sequence
+		outCnt = 2
+
+		while ((outCnt < 127) and (tempArray[0] == tempArray[1])):
+			outCnt += 1
+			tempArray[1] = pixelArray[pixCnt]
+			pixCnt += 1
+		
+		outlist.append(outCnt - 1)
+		outlist.append(tempArray[0])
+
+		tempArray[0] = tempArray[1]
+
+	return outlist
 
 def convertToPIF(image, resize, conversion, dithering, compression):
 	class CompressionMode(Enum):
@@ -134,10 +193,10 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 	TemporaryImage = image.copy()
 
 	#Write the image header with the information we already have
-	imageHeader[ImageH.IMAGEWIDTH] = TemporaryImage.width
-	imageHeader[ImageH.IMAGEHEIGHT] = TemporaryImage.height
+	imageHeader[ImageH.IMAGEWIDTH.value] = TemporaryImage.width
+	imageHeader[ImageH.IMAGEHEIGHT.value] = TemporaryImage.height
 	if (compression):
-		imageHeader[ImageH.COMPRTYPE] = 0x7DDE
+		imageHeader[ImageH.COMPRTYPE.value] = 0x7DDE
 
 	if ((conversion != ConversionType.RGB888) and (conversion != ConversionType.RGB565)):
 		TemporaryImage = convertImage(image, resize, conversion, dithering)
@@ -147,15 +206,15 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 	match conversion:
 		case ConversionType.MONOCHROME:
 			# Write the Image Type and Bits per Pixel into the imageHeader
-			imageHeader[ImageH.IMAGETYPE] = 0x7DAA	# B/W mode selected
-			imageHeader[ImageH.BITSPERPIXEL] = 8		# 8 Bits per Pixel
+			imageHeader[ImageH.IMAGETYPE.value] = 0x7DAA	# B/W mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = 1		# 8 Bits per Pixel
 			# Check every pixel and pack to a group of 8 within a byte
 			for y in range(TemporaryImage.height):
 				for x in range(TemporaryImage.width):
 					color = TemporaryImage.getpixel((x,y))
 					if (color): # 0 = black, 255 = white
-						imageWord = imageWord | (1 << imageWord)
-					imageCnt = imageCnt + 1
+						imageWord |= 1 << imageCnt
+					imageCnt += 1
 					if (imageCnt >= 8):
 						imageData.append(imageWord)
 						imageWord = 0
@@ -206,10 +265,74 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 		imageData = rle_compress(imageData)
 
 	# Write down the image size into the header
-	imageHeader[ImageH.IMAGESIZE] = len(imageData)
+	imageHeader[ImageH.IMAGESIZE.value] = len(imageData)
 
 	# Return the image header, color table and image data
 	return imageHeader,colorTable,imageData
+
+# Python is annoying with that stuff, should have used C#
+def savePIF(imageHeader, colorTable, imageData, path):
+	# I'm old school, so I wanna allocate the space before processing the data
+	tTotalPIF = []
+	tPIFHeader = [None] * 12
+	tImgHeader = [None] * 16
+	tColTable = [None] * 3 * imageHeader[5]
+	tImgData = []
+
+	tPIFHeader[0] = 0x50
+	tPIFHeader[1] = 0x49
+	tPIFHeader[2] = 0x46
+	tPIFHeader[3] = 0
+	
+	tImgHeader[0] = imageHeader[0] & 0xFF
+	tImgHeader[1] = (imageHeader[0] & 0xFF00) >> 8
+	tImgHeader[2] = imageHeader[1] & 0xFF
+	tImgHeader[3] = (imageHeader[1] & 0xFF00) >> 8
+	tImgHeader[4] = imageHeader[2] & 0xFF
+	tImgHeader[5] = (imageHeader[2] & 0xFF00) >> 8
+	tImgHeader[6] = imageHeader[3] & 0xFF
+	tImgHeader[7] = (imageHeader[3] & 0xFF00) >> 8
+	tImgHeader[8] = imageHeader[4] & 0xFF
+	tImgHeader[9] = (imageHeader[4] & 0xFF00) >> 8
+	tImgHeader[10] = (imageHeader[4] & 0xFF0000) >> 16
+	tImgHeader[11] = (imageHeader[4] & 0xFF000000) >> 24
+	tImgHeader[12] = imageHeader[5] & 0xFF
+	tImgHeader[13] = (imageHeader[5] & 0xFF00) >> 8
+	tImgHeader[14] = imageHeader[6] & 0xFF
+	tImgHeader[15] = (imageHeader[6] & 0xFF00) >> 8
+
+	if (imageHeader[5] > 0):
+		for index in range(colorTable):
+			tColTable[index * 3] = (colorTable[index] & 0xFF0000) >> 16
+			tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
+			tColTable[index * 3 + 2] = (colorTable[index] & 0xFF)
+	
+	for index in range(len(imageData)):
+		tImgData.append(imageData[index] & 0xFF)
+
+	tTotalPIF.extend(tPIFHeader)
+	tTotalPIF.extend(tImgHeader)
+	if (imageHeader[5] > 0):
+		tTotalPIF.extend(tColTable)
+	iStart = len(tTotalPIF)
+	tTotalPIF.extend(tImgData)
+	iSize = len(tTotalPIF)
+
+	tTotalPIF[4] = iSize & 0xFF
+	tTotalPIF[5] = (iSize & 0xFF00) >> 8
+	tTotalPIF[6] = (iSize & 0xFF0000) >> 16
+	tTotalPIF[7] = (iSize & 0xFF000000) >> 24
+
+	tTotalPIF[8] = iStart & 0xFF
+	tTotalPIF[9] = (iStart & 0xFF00) >> 8
+	tTotalPIF[10] = (iStart & 0xFF0000) >> 16
+	tTotalPIF[11] = (iStart & 0xFF000000) >> 24
+
+	bImageHeader = bytes(tTotalPIF)
+	PIFFile = open(path, "wb")
+	# write to file
+	PIFFile.write(bImageHeader)
+	PIFFile.close()
 
 #ToDo: Indexing option window
 def open_window():
@@ -311,11 +434,20 @@ def main():
 
 			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
-			convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
-			open_window()
+			# open_window()
+			if (ImageToDisplay == None): continue
+			conType = ConversionType.UNDEFINED
+			if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
+			if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
+			if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
+			if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
+			if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
+			if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
+			imageHeader, colorTable, imageData = convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
+			savePIF(imageHeader, colorTable, imageData, 'test.pif')
 
 		# Open  image
 		if (events == 'Open'):
