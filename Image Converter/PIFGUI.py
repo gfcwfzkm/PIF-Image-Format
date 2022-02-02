@@ -1,10 +1,8 @@
-from bz2 import compress
-from operator import mod
+import io
+import threading
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 from enum import Enum		# requires python 3.10 or higher
-import io
-import threading
 
 THREADWAIT = 0.1
 
@@ -102,6 +100,7 @@ def convertImage(image, resize, conversion, dithering):
 
 def rle_compress(pixelArray):
 	outlist = []
+	rlePos = []
 	tempArray = [None]*129
 	outCnt = 1
 	pixCnt = 0
@@ -143,6 +142,7 @@ def rle_compress(pixelArray):
 				outCnt -= 1
 			
 			#Add to list
+			rlePos.append(len(outlist))
 			outlist.append(outCnt * -1)
 			outlist.extend(tempArray[:outCnt])
 			
@@ -153,24 +153,21 @@ def rle_compress(pixelArray):
 		# Compressible sequence
 		outCnt = 2
 
-		while ((outCnt < 127) and (tempArray[0] == tempArray[1])):
+		while ((pixCnt < len(pixelArray)) and (outCnt < 127) and (tempArray[0] == tempArray[1])):
 			outCnt += 1
 			tempArray[1] = pixelArray[pixCnt]
 			pixCnt += 1
 		
+		rlePos.append(len(outlist))
 		outlist.append(outCnt - 1)
 		outlist.append(tempArray[0])
 
 		tempArray[0] = tempArray[1]
 
-	return outlist
+	rlePos.append(None)
+	return rlePos,outlist
 
 def convertToPIF(image, resize, conversion, dithering, compression):
-	class CompressionMode(Enum):
-		NOTHING	= 0
-		PREPARE = 1
-		REPEATIVE = 2
-		INDIVIDUAL = 3
 	class ImageH(Enum):
 		IMAGETYPE = 0
 		BITSPERPIXEL = 1
@@ -207,7 +204,7 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 		case ConversionType.MONOCHROME:
 			# Write the Image Type and Bits per Pixel into the imageHeader
 			imageHeader[ImageH.IMAGETYPE.value] = 0x7DAA	# B/W mode selected
-			imageHeader[ImageH.BITSPERPIXEL.value] = 1		# 8 Bits per Pixel
+			imageHeader[ImageH.BITSPERPIXEL.value] = 1		# 1 Bits per Pixel
 			# Check every pixel and pack to a group of 8 within a byte
 			for y in range(TemporaryImage.height):
 				for x in range(TemporaryImage.width):
@@ -223,26 +220,38 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 			if (imageCnt > 0):
 				imageData.append(imageWord)
 		case ConversionType.RGB16C:
+			# Write the Image Type and Bits per Pixel into the imageHeader
+			imageHeader[ImageH.IMAGETYPE.value] = 0xB895	# RGB16C mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = 4		# 4 Bits per Pixel
 			# Check every pixel and pack to a group of 2 within a byte
 			for y in range(TemporaryImage.height):
 				for x in range(TemporaryImage.width):
 					color = TemporaryImage.getpixel((x,y))
 					# Check which of the 16 colors is used to return a value between 0 and 15
-					for col in range(16):
-						if (color == WINDOWS16COLORPAL[(col*3):3]):
-							imageWord = imageWord | (col << ((imageCnt % 2) * 4))
-							imageCnt = imageCnt + 1
-							if (imageCnt >= 2):
-								imageData.append(imageWord)
-								imageWord = 0
-								imageCnt = 0
+					imageWord = imageWord | (color << ((imageCnt % 2) * 4))
+					imageCnt = imageCnt + 1
+					if (imageCnt >= 2):
+						imageData.append(imageWord)
+						imageWord = 0
+						imageCnt = 0
 			# Add remaining Pixels, if there are any
 			if (imageCnt > 0):
 				imageData.append(imageWord)
-			print(TemporaryImage)
 		case ConversionType.RGB332:
-			print(TemporaryImage)
+			# Write the Image Type and Bits per Pixel into the imageHeader
+			TemporaryImage = TemporaryImage.convert('RGB')
+			imageHeader[ImageH.IMAGETYPE.value] = 0x1E53	# RGB332 mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = 8		# 8 Bits per Pixel
+			for x in range(TemporaryImage.width):
+				for y in range(TemporaryImage.height):
+					color = list(TemporaryImage.getpixel((x,y)))
+					color[0] = color[0] & 0xE0	# R
+					color[1] = color[1] & 0x1C	# G
+					color[2] = color[2] & 0x03	# B
+					imageData.append(color[0] | color[1] | color[2])
 		case ConversionType.RGB565:
+			imageHeader[ImageH.IMAGETYPE.value] = 0xE5C5	# RGB565 mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = 16		# 16 Bits per Pixel
 			# Relatively easy here, just trim the 24-bit RGB image to 16-bit RGB
 			# and add it to the list
 			for x in range(TemporaryImage.width):
@@ -252,26 +261,31 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 					color[1] = color[1] & 0xFC	# G
 					color[2] = color[2] & 0xF8	# B
 					imageData.append((color[0] << 8) | (color[1] << 5) | (color[2]))
-			print(TemporaryImage)
 		case ConversionType.RGB888:
+			imageHeader[ImageH.IMAGETYPE.value] = 0x433C	# RGB888 mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = 24		# 24 Bits per Pixel
 			# Fit the color into 24bit and add it to the list
 			for x in range(TemporaryImage.width):
 				for y in range(TemporaryImage.height):
 					color = list(TemporaryImage.getpixel((x,y)))
 					imageData.append((color[0] << 16) | (color[1] << 8) | (color[2]))
+		case ConversionType.INDEXED:
+			print('welp, nothing to see here')
 	
 	# compress the data if requested
 	if (compression):
-		imageData = rle_compress(imageData)
+		rlePos, imageData = rle_compress(imageData)
+	else:
+		rlePos = [None]
 
 	# Write down the image size into the header
 	imageHeader[ImageH.IMAGESIZE.value] = len(imageData)
 
 	# Return the image header, color table and image data
-	return imageHeader,colorTable,imageData
+	return imageHeader,colorTable,imageData,rlePos
 
 # Python is annoying with that stuff, should have used C#
-def savePIF(imageHeader, colorTable, imageData, path):
+def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	# I'm old school, so I wanna allocate the space before processing the data
 	tTotalPIF = []
 	tPIFHeader = [None] * 12
@@ -307,8 +321,22 @@ def savePIF(imageHeader, colorTable, imageData, path):
 			tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
 			tColTable[index * 3 + 2] = (colorTable[index] & 0xFF)
 	
+	rleIndex = 0
 	for index in range(len(imageData)):
-		tImgData.append(imageData[index] & 0xFF)
+		# RLE Data is always only 1 byte large, while image data can be up to three bytes large
+		if ((imageHeader[6] != 0) and (rlePos[rleIndex] == index)):
+			rleIndex += 1
+			tImgData.append(imageData[index] & 0xFF)
+		else:
+			if (imageHeader[1] == 16):
+				tImgData.append(imageData[index] & 0xFF)
+				tImgData.append((imageData[index] & 0xFF00) >> 8)
+			elif (imageHeader[1] == 24):
+				tImgData.append(imageData[index] & 0xFF)
+				tImgData.append((imageData[index] & 0xFF00) >> 8)
+				tImgData.append((imageData[index] & 0xFF0000) >> 16)
+			else:
+				tImgData.append(imageData[index] & 0xFF)
 
 	tTotalPIF.extend(tPIFHeader)
 	tTotalPIF.extend(tImgHeader)
@@ -333,22 +361,46 @@ def savePIF(imageHeader, colorTable, imageData, path):
 	# write to file
 	PIFFile.write(bImageHeader)
 	PIFFile.close()
+	return iSize
 
 #ToDo: Indexing option window
 def open_window():
-    layout = [[sg.Text("New Window", key="new")]]
-    window = sg.Window("Second Window", layout, modal=True)
-    choice = None
-    while True:
-        event, values = window.read()
-        if event == "Exit" or event == sg.WIN_CLOSED:
-            break
-        
-    window.close()
+	layout = [[sg.Text("New Window", key="new")]]
+	window = sg.Window("Second Window", layout, modal=True)
+	choice = None
+	while True:
+		event, values = window.read()
+		if event == "Exit" or event == sg.WIN_CLOSED:
+			break
+	window.close()
+
+def file_saved(imageType, compression, size):
+	leftCol = [
+		[sg.Text("Image Type:")],
+		[sg.Text("RLE Compression:")],
+		[sg.Text("File size:")]
+	]
+	rightCol = [
+		[sg.Text(imageType)],
+		[sg.Text(compression)],
+		[sg.Text(f'{size} Bytes')]
+	]
+	layout = [
+		[sg.Text('PIF Image saved!', justification='center', expand_x=True)],
+		[sg.Column(leftCol),sg.Column(rightCol)],
+		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
+	]
+	window = sg.Window("Done!", layout, modal=True)
+	choice = None
+	while True:
+		event, values = window.read()
+		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
+			break
+	window.close()
 
 def main():
 	menubar_layout = [
-		['&File', ['&Open','&Quit']],
+		['&File', ['&Open','&Save','&Quit']],
 		['&Help', ['&About']]
 	]
 
@@ -373,19 +425,20 @@ def main():
 			expand_x=True)
 		],
 		[sg.Frame('Image Resize', [
-		#	[sg.Radio('Pixel', 4, key='-RB_RES_PXL-', enable_events=True, default=True),sg.Radio('Percentage', 4, key='-RB_RES_PRC-', enable_events=True)],
 			[sg.Text('W:'), sg.Input(key='-IN_SIZE_X-', size=(8,1), enable_events=True), sg.Text('H:'), sg.Input(key='-IN_SIZE_Y-', size=(8,1), enable_events=True)],
 			[sg.Checkbox('Lock Ratio', key='-CB_RAT-', default=True)]],
 			expand_x=True)
 		],
 		[sg.VPush()],
-		[sg.Button('Preview', key='-BTN_PREV-', expand_x=True)]
+		[sg.Button('Open', key='-BTN_OPEN-', expand_x=True)],
+		[sg.Button('Preview', key='-BTN_PREV-', expand_x=True)],
+		[sg.Button('Save', key='-BTN_SAVE-', expand_x=True)]
 	]	
 
 	rightCol_layout = [
 		[sg.Text(' ', key='-TBXPATH-', expand_x=True, justification='center')],
 		[sg.Image(key='-IMGBOX-', expand_x=True, expand_y=True)],
-		[sg.Text(size=(60,1))]
+		[sg.Text(size=(80,1))]
 	]
 
 	layout = [
@@ -409,7 +462,6 @@ def main():
 
 	OriginalImage = None	# Original Image, do not change
 	ImageToDisplay = None	# Image to Display and manipulate
-	ConvertedImage = None	# Result / Converted Image
 
 	# Setup the threaded timer beforehand, used in TimerStrategy
 	timer_windowResize = threading.Timer(THREADWAIT, resizeImage,args=(window, ImageToDisplay, ImageOffset))
@@ -438,19 +490,10 @@ def main():
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
 			# open_window()
-			if (ImageToDisplay == None): continue
-			conType = ConversionType.UNDEFINED
-			if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
-			if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
-			if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
-			if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
-			if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
-			if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
-			imageHeader, colorTable, imageData = convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
-			savePIF(imageHeader, colorTable, imageData, 'test.pif')
+			file_saved('RGB888', 'True', '1234')
 
 		# Open  image
-		if (events == 'Open'):
+		if ((events == 'Open') or (events == '-BTN_OPEN-')):
 			filename = sg.popup_get_file('Open Image', no_window=True, show_hidden=False, file_types=(("Images", "*.png *.gif *.bmp *.jpg *.jpeg"),))
 			# Check if a image has been selected (aka popup returned a file path)
 			if (filename):	
@@ -463,6 +506,24 @@ def main():
 				window['-TBXPATH-'].update(filename)
 				window['-IN_SIZE_X-'].update(ImageToDisplay.size[0])
 				window['-IN_SIZE_Y-'].update(ImageToDisplay.size[1])
+
+		# Convert & save the PIF file
+		if ((events == 'Save') or (events == '-BTN_SAVE-')):
+			if (ImageToDisplay == None): continue
+			filename = sg.popup_get_file('Save PIF Image', save_as=True, no_window=True, show_hidden=False, file_types=(("PIF Image", "*.pif"),))
+			if (filename):
+				print(filename)
+				conType = ConversionType.UNDEFINED
+				if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
+				if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
+				if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
+				if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
+				if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
+				if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
+				imageHeader, colorTable, imageData, rlePos = convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
+				isize = savePIFbinary(imageHeader, colorTable, imageData, rlePos, filename)
+				compression = values['-RB_COMP_RLE-']
+				file_saved(conType.name, compression, isize)
 
 		# Respond to window resize and re-load the image
 		if (events == 'WinEvent'):
