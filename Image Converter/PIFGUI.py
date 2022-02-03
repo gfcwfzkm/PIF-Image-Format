@@ -364,9 +364,9 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	return iSize
 
 #ToDo: Indexing option window
-def open_window():
-	layout = [[sg.Text("New Window", key="new")]]
-	window = sg.Window("Second Window", layout, modal=True)
+def get_indexing():
+	layout = [[sg.Text('Todo: Figure out indexing window layout')]]
+	window = sg.Window('Indexing Options', layout, modal=True)
 	choice = None
 	while True:
 		event, values = window.read()
@@ -391,6 +391,19 @@ def file_saved(imageType, compression, size):
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
 	window = sg.Window("Done!", layout, modal=True)
+	choice = None
+	while True:
+		event, values = window.read()
+		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
+			break
+	window.close()
+
+def about():
+	layout = [
+		[sg.Text('PIF Converter programmed by Pascal G (alias gfcwfzkm)', justification='center', expand_x=True)],
+		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
+	]
+	window = sg.Window("About", layout, modal=True)
 	choice = None
 	while True:
 		event, values = window.read()
@@ -450,7 +463,7 @@ def main():
 		]
 	]
 
-	window = sg.Window('Image converter', layout, border_depth=0, resizable=True, finalize=True)
+	window = sg.Window('PIF Image converter', layout, border_depth=0, resizable=True, finalize=True)
 	window.bind('<Configure>', "WinEvent")
 	window.set_min_size((window.size[0], window.size[1]+30))
 	window['-PANE-'].expand(True, True, True)
@@ -489,8 +502,11 @@ def main():
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
-			# open_window()
-			file_saved('RGB888', 'True', '1234')
+			get_indexing()
+
+		# About Window
+		if (events == 'About'):
+			about()
 
 		# Open  image
 		if ((events == 'Open') or (events == '-BTN_OPEN-')):

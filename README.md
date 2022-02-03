@@ -14,15 +14,16 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
  - Ease of use and implementation
 
 ## Tools
-
+### PIF Image Converter
+![Image of the Tool](test_images/tool_screenshot.png)
+A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [ ] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
-	- [ ] Saving as .PIF
+	- [x] Saving as .PIF
+	- [ ] Custom (Indexed) options
 	- [ ] Saving as .h Header
 	- [ ] CLI Implementation
  - [ ] Image viewer
- - [ ] Python library
- - [ ] Basic C implementation (decoding)
