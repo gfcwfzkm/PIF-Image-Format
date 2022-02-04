@@ -1,3 +1,8 @@
+# PIF GUI Converter by gfcwfzkm (02.2022)
+# Dependencies: pillow & pysimplegui
+# Might require python 3.10 or higher
+# (Sorry if things don't look too professional, just started with python a month ago)
+
 import io
 import threading
 import PySimpleGUI as sg	# pip install pysimplegui
@@ -365,11 +370,15 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 
 #ToDo: Indexing option window
 def get_indexing():
-	layout = [[sg.Text('Todo: Figure out indexing window layout')]]
+	layout = [
+		[sg.Text('Todo: Figure out indexing window layout')],
+		[sg.ColorChooserButton('Color Picker')]
+]
 	window = sg.Window('Indexing Options', layout, modal=True)
 	choice = None
 	while True:
 		event, values = window.read()
+		print(event, values)
 		if event == "Exit" or event == sg.WIN_CLOSED:
 			break
 	window.close()
