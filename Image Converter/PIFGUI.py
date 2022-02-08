@@ -368,6 +368,7 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	PIFFile.close()
 	return iSize
 
+# INDEXING OPTIONS
 #ToDo: Indexing option window
 def get_indexing():
 	layout = [
@@ -379,10 +380,11 @@ def get_indexing():
 	while True:
 		event, values = window.read()
 		print(event, values)
-		if event == "Exit" or event == sg.WIN_CLOSED:
+		if event == sg.WIN_CLOSED:
 			break
 	window.close()
 
+# FILE SAVED WINDOW
 def file_saved(imageType, compression, size):
 	leftCol = [
 		[sg.Text("Image Type:")],
@@ -407,9 +409,10 @@ def file_saved(imageType, compression, size):
 			break
 	window.close()
 
+# ABOUT WINDOW
 def about():
 	layout = [
-		[sg.Text('PIF Converter programmed by Pascal G (alias gfcwfzkm)', justification='center', expand_x=True)],
+		[sg.Text('PIF Converter programmed by Pascal G. (alias gfcwfzkm)', justification='center', expand_x=True)],
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
 	window = sg.Window("About", layout, modal=True)
@@ -420,6 +423,7 @@ def about():
 			break
 	window.close()
 
+# MAIN WINDOW
 def main():
 	menubar_layout = [
 		['&File', ['&Open','&Save','&Quit']],
@@ -428,7 +432,7 @@ def main():
 
 	leftCol_layout = [
 		[sg.Frame('Colour Settings', [
-			[sg.Radio('Custom', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
+			[sg.Radio('Indexed', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
 			[sg.Radio('1bpp (Monochrome B/W)', 1, key='-RB_COL_1BM-', enable_events=True)],
 			[sg.Radio('4bpp (16 fixed Colors', 1, key='-RB_COL_4C-', enable_events=True)],
 			[sg.Radio('8bpp (256 Colors - RGB332)', 1, key='-RB_COL_8B-', enable_events=True)],

@@ -17,7 +17,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
 I know, I know, there are way too many image standards and I'm sure there is a xkcd comic panel about it already. On the one side this project is an excuse for me to take a deeper look into python and figure this programming language out, on the otherside I have gotten frustrated with the options when one wants to load images on a display from a microcontroller. I've encountered always the same problems there:
 
 Either the compression used on the image format (png/jpg) makes it slow to display the image, but it's at least fast to read due to the small size.
-Or the format looked like it was from the late 80s with various extensions bodged into it, resulting into large sizes and oddities to handle (image building from the top upwards, for example).
+Or the format looked like it was from the late 80s with various extensions bodged into it, resulting into large sizes and oddities to handle (image building from the bottom upwards, for example).
 
 With PIF I am trying to address both issues at once: A image format that is easy to implement and process on weak hardware, while offering smaller sizes. This is achived by a very basic image and file header that is easy to read, a simple RLE compression to reduce size as well as more color options for the pixel when less colors are required.
 
@@ -37,12 +37,12 @@ The Lenna test image was used, found in the test_images folder:
 | PIF RGB16C    | 131 100           | 4   | None        |
 | PIF RGB16C    | 78 757            | 4   | RLE         |
 | PIF B/W       | 32 796            | 1   | None        |
-| PIF B/W       | 14 144            | 1   | None        |
+| PIF B/W       | 14 144            | 1   | RLE        |
 
 The sizes could likely be further reduced and colors optimized when a indexed 16 color table would be used.
 ## Tools
 ### PIF Image Converter
-( Required pip packages: pillow, pysimplegui )
+( Required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) )
 ![Image of the Tool](test_images/tool_screenshot.png)
 A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
 ## Todo
@@ -55,3 +55,4 @@ We still have some steps ahead of us before this project can be considered finis
 	- [ ] Saving as .h Header
 	- [ ] CLI Implementation
  - [ ] Image viewer
+ - [ ] Portable C Driver Code
