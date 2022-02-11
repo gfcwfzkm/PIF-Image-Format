@@ -371,12 +371,30 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 # INDEXING OPTIONS
 #ToDo: Indexing option window
 def get_indexing():
+	left_col = [
+		[sg.Frame('Lookup Table Color Settings', [
+			[sg.Radio('8BPP - RGB332', group_id=10, default=True)],
+			[sg.Radio('16BPP - RGB565', group_id=10)],
+			[sg.Radio('24BPP - RGB888', group_id=10)]
+		])],
+		[sg.VPush()],
+		[sg.Button('Analyze Image', expand_x=True)],
+		[sg.Button('Apply Changes and Exit', expand_x=True)],
+		[sg.Button('Abort and Revert Changes', expand_x=True)]
+	]
+	
 	layout = [
-		[sg.Text('Todo: Figure out indexing window layout')],
-		[sg.ColorChooserButton('Color Picker')]
-]
-	window = sg.Window('Indexing Options', layout, modal=True)
-	choice = None
+		[
+			sg.Column(left_col),
+			sg.Column([[
+					sg.Frame(f'{val}',[[
+						sg.Text('None', key=f'c_{val}'),
+						sg.Push(),
+						sg.ColorChooserButton(f'Color Picker {val}', target=f'c_{val}')]],
+					expand_x=True)] for val in range(40)
+			],expand_x=True, justification='c', scrollable=True, vertical_scroll_only=True)],
+	]
+	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(600, 600))
 	while True:
 		event, values = window.read()
 		print(event, values)
@@ -402,7 +420,6 @@ def file_saved(imageType, compression, size):
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
 	window = sg.Window("Done!", layout, modal=True)
-	choice = None
 	while True:
 		event, values = window.read()
 		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
@@ -416,7 +433,6 @@ def about():
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
 	window = sg.Window("About", layout, modal=True)
-	choice = None
 	while True:
 		event, values = window.read()
 		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
