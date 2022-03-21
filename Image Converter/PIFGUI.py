@@ -5,9 +5,12 @@
 
 import io
 import threading
+from unicodedata import name
+from dataclasses import dataclass
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
-from enum import Enum		# requires python 3.10 or higher
+from enum import Enum
+from numpy import imag		# requires python 3.10 or higher
 
 THREADWAIT = 0.1
 
@@ -33,18 +36,17 @@ WINDOWS16COLORPAL = [
 	255, 255, 85,	# yellow
 	255, 255, 255	# white
 ]
-# 0b0010 1100 = 0x2C
-# Image display: 00xx0x00
-# Image display: 00x0xx00
 
 class ConversionType(Enum):
 	UNDEFINED	= 0
-	INDEXED		= 1
-	MONOCHROME 	= 2
-	RGB16C		= 3
-	RGB332 		= 4
-	RGB565 		= 5
-	RGB888 		= 6
+	INDEXED332	= 1
+	INDEXED565	= 2
+	INDEXED888	= 3
+	MONOCHROME 	= 4
+	RGB16C		= 5
+	RGB332 		= 6
+	RGB565 		= 7
+	RGB888 		= 8
 
 class CompressionType(Enum):
 	NO_COMPRESSION 	= 0
@@ -275,7 +277,7 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 					color = list(TemporaryImage.getpixel((x,y)))
 					imageData.append((color[0] << 16) | (color[1] << 8) | (color[2]))
 		case ConversionType.INDEXED:
-			print('welp, nothing to see here')
+			print('welp, nothing to see here yet')
 	
 	# compress the data if requested
 	if (compression):
@@ -368,41 +370,86 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	PIFFile.close()
 	return iSize
 
-# INDEXING OPTIONS
-#ToDo: Indexing option window
-def get_indexing():
+#########################################################################
+#                    INDEXING OPTIONS WINDOW                            #
+#########################################################################
+def get_indexing(image, existingColLen, existingColType, existingColList):
 	left_col = [
 		[sg.Frame('Lookup Table Color Settings', [
-			[sg.Radio('8BPP - RGB332', group_id=10, default=True)],
+			[sg.Radio('8BPP - RGB332', group_id=10)],
 			[sg.Radio('16BPP - RGB565', group_id=10)],
-			[sg.Radio('24BPP - RGB888', group_id=10)]
-		])],
+			[sg.Radio('24BPP - RGB888', group_id=10, default=True)]
+		], expand_x=True)],
+		[sg.Frame('Amount of Indexed Colors', [
+			[sg.Button('Increment', key='BTN_INC', expand_x=True)],
+			[sg.Input('2', size=(4,None), key='TBX_NUM', expand_x=True, enable_events=True)],
+			[sg.Button('Decrement', key='BTN_DEC', expand_x=True)]
+		],expand_x=True)],
 		[sg.VPush()],
-		[sg.Button('Analyze Image', expand_x=True)],
-		[sg.Button('Apply Changes and Exit', expand_x=True)],
-		[sg.Button('Abort and Revert Changes', expand_x=True)]
+		[sg.Button('Analyze Image', key='BTN_AN', expand_x=True)],
+		[sg.Button('Apply Changes and Exit', key='BTN_AP', expand_x=True)],
+		[sg.Button('Abort and Revert Changes', key='BTN_CL', expand_x=True)]
 	]
 	
 	layout = [
 		[
-			sg.Column(left_col),
+			sg.Pane([
+				sg.Column(left_col, expand_y=True, expand_x=False, element_justification='l')],
+				orientation='h', relief=sg.RELIEF_SUNKEN, key='-PANE-'),
 			sg.Column([[
-					sg.Frame(f'{val}',[[
-						sg.Text('None', key=f'c_{val}'),
+					sg.Frame(f'Color Index {val}',[[
+						sg.Text('#ffffff', size=(15,None), key=f'C_{val}'),
 						sg.Push(),
-						sg.ColorChooserButton(f'Color Picker {val}', target=f'c_{val}')]],
-					expand_x=True)] for val in range(40)
-			],expand_x=True, justification='c', scrollable=True, vertical_scroll_only=True)],
+						sg.ColorChooserButton(f'Color Picker', target=f'C_{val}', bind_return_key=True)]],
+					key=f'F_{val}', expand_x=True)] for val in range(256)
+			],key='LCOL', expand_x=True, justification='c', scrollable=True, vertical_scroll_only=True)],
 	]
-	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(600, 600))
+	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(500, 600))
+	window['-PANE-'].expand(True, True, True)
+
+	if (existingColLen != None):
+		print("configure stuff for previous list")
+	
+	IndexingValue = 2
 	while True:
 		event, values = window.read()
 		print(event, values)
+
+		if (event == 'BTN_INC'):
+			if (IndexingValue < 255):
+				IndexingValue = IndexingValue + 1
+				window['TBX_NUM'].update(IndexingValue)
+
+		if (event == 'BTN_DEC'):
+			if (IndexingValue > 2):
+				IndexingValue = IndexingValue - 1
+				window['TBX_NUM'].update(IndexingValue)
+
+		if (event == 'TBX_NUM'):
+			try:
+				value = (int)(values['TBX_NUM'])
+				if ((value > 255) or (value < 2)):
+					value = IndexingValue
+				else:
+					IndexingValue = value
+			except:
+				value = IndexingValue
+			window['TBX_NUM'].update(value)
+
+		if (event == 'BTN_AN'):
+			imP = image.convert('P', palette=PIL.Image.ADAPTIVE, colors=IndexingValue)
+			colTable = imP.getpalette()
+			for val in range(IndexingValue):
+				window[f'C_{val}'].update(value=f'#{colTable[val * 3]:0{2}x}{colTable[val * 3 + 1]:0{2}x}{colTable[val * 3 + 2]:0{2}x}')
+			print('x')
+
 		if event == sg.WIN_CLOSED:
 			break
 	window.close()
 
-# FILE SAVED WINDOW
+#########################################################################
+#                       FILE SAVED WINDOW                               #
+#########################################################################
 def file_saved(imageType, compression, size):
 	leftCol = [
 		[sg.Text("Image Type:")],
@@ -426,7 +473,9 @@ def file_saved(imageType, compression, size):
 			break
 	window.close()
 
-# ABOUT WINDOW
+#########################################################################
+#                            ABOUT WINDOW                               #
+#########################################################################
 def about():
 	layout = [
 		[sg.Text('PIF Converter programmed by Pascal G. (alias gfcwfzkm)', justification='center', expand_x=True)],
@@ -439,7 +488,9 @@ def about():
 			break
 	window.close()
 
-# MAIN WINDOW
+#########################################################################
+#                            MAIN WINDOW                                #
+#########################################################################
 def main():
 	menubar_layout = [
 		['&File', ['&Open','&Save','&Quit']],
@@ -531,7 +582,7 @@ def main():
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
-			get_indexing()
+			get_indexing(OriginalImage, None, None, None)
 
 		# About Window
 		if (events == 'About'):
