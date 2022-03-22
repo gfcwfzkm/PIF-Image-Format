@@ -72,10 +72,20 @@ def resizeImage(window, image, offsets):
 	# (Basically avoiding to check the [image]-element's size, trying to save calls here by working with stored variables)
 	window['-IMGBOX-'].update(convToBytes(image, (oldWindowSize[0] - offsets[0], oldWindowSize[1] - offsets[1])))
 
-def convertImage(image, resize, conversion, dithering):
+def convertImage(image, resize, conversion, colLen, colArray, dithering):
 	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
 	ImageToReturn = image.copy()
 	match conversion:
+		case ConversionType.INDEXED332:
+			palImage = PIL.Image.new('P', (16,16))
+			tempColList = []
+			for entries in range(colLen):
+				tempColList.append(colArray[entries * 3] & 0b11100000)		# RED
+				tempColList.append(colArray[entries * 3 + 1] & 0b11100000)	# GREEN
+				tempColList.append(colArray[entries * 3 + 2] & 0b11000000)	# BLUE
+			tempColList.extend(tempColList[:3] * (256 - colLen))
+			palImage.putpalette(tempColList)
+			ImageToReturn = ImageToProcess.quantize(colLen, palette=palImage, dither=dithering)
 		case ConversionType.MONOCHROME:
 			ImageToReturn = ImageToProcess.convert("1", dither=dithering)
 		case ConversionType.RGB16C:
@@ -376,9 +386,9 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 def get_indexing(image, existingColLen, existingColType, existingColList):
 	left_col = [
 		[sg.Frame('Lookup Table Color Settings', [
-			[sg.Radio('8BPP - RGB332', group_id=10)],
-			[sg.Radio('16BPP - RGB565', group_id=10)],
-			[sg.Radio('24BPP - RGB888', group_id=10, default=True)]
+			[sg.Radio('8BPP - RGB332', group_id=10, key='RB_8')],
+			[sg.Radio('16BPP - RGB565', group_id=10, key='RB_16')],
+			[sg.Radio('24BPP - RGB888', group_id=10, key='RB_24', default=True)]
 		], expand_x=True)],
 		[sg.Frame('Amount of Indexed Colors', [
 			[sg.Button('Increment', key='BTN_INC', expand_x=True)],
@@ -386,9 +396,9 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 			[sg.Button('Decrement', key='BTN_DEC', expand_x=True)]
 		],expand_x=True)],
 		[sg.VPush()],
-		[sg.Button('Analyze Image', key='BTN_AN', expand_x=True)],
+		[sg.Button('Analyze Image (RGB888)', key='BTN_AN', expand_x=True)],
 		[sg.Button('Apply Changes and Exit', key='BTN_AP', expand_x=True)],
-		[sg.Button('Abort and Revert Changes', key='BTN_CL', expand_x=True)]
+		[sg.Button('Cancel Changes and Exit', key='BTN_CL', expand_x=True)]
 	]
 	
 	layout = [
@@ -397,7 +407,7 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 				sg.Column(left_col, expand_y=True, expand_x=False, element_justification='l')],
 				orientation='h', relief=sg.RELIEF_SUNKEN, key='-PANE-'),
 			sg.Column([[
-					sg.Frame(f'Color Index {val}',[[
+					sg.Frame(f'Color Index {val + 1}',[[
 						sg.Text('#ffffff', size=(15,None), key=f'C_{val}'),
 						sg.Push(),
 						sg.ColorChooserButton(f'Color Picker', target=f'C_{val}', bind_return_key=True)]],
@@ -407,10 +417,17 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(500, 600))
 	window['-PANE-'].expand(True, True, True)
 
-	if (existingColLen != None):
-		print("configure stuff for previous list")
-	
-	IndexingValue = 2
+	IndexingValue = existingColLen
+	window['TBX_NUM'].update(IndexingValue)
+
+	for val in range(IndexingValue):
+		window[f'C_{val}'].update(value=f'#{existingColList[val * 3]:0{2}x}{existingColList[val * 3 + 1]:0{2}x}{existingColList[val * 3 + 2]:0{2}x}')
+
+	if (existingColType == ConversionType.INDEXED332):
+		window['RB_8'].update(True)
+	elif (existingColType == ConversionType.INDEXED565):
+		window['RB_16'].update(True)
+
 	while True:
 		event, values = window.read()
 		print(event, values)
@@ -436,7 +453,26 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 				value = IndexingValue
 			window['TBX_NUM'].update(value)
 
-		if (event == 'BTN_AN'):
+		if (event == 'BTN_AP'):
+			existingColLen = IndexingValue
+			if (values['RB_8'] == True):
+				existingColType = ConversionType.INDEXED332
+			elif (values['RB_16'] == True):
+				existingColType = ConversionType.INDEXED565
+			elif (values['RB_24'] == True):
+				existingColType = ConversionType.INDEXED888
+			for val in range(IndexingValue):
+				hexColors = PIL.ImageColor.getrgb(window[f'C_{val}'].get())
+				existingColList[val * 3] = hexColors[0]
+				existingColList[val * 3 + 1] = hexColors[1]
+				existingColList[val * 3 + 2] = hexColors[2]
+			break
+
+		if (event == 'BTN_CL'):
+			break
+
+		if (not image == None) and (event == 'BTN_AN'):
+			window['RB_24'].update(True)
 			imP = image.convert('P', palette=PIL.Image.ADAPTIVE, colors=IndexingValue)
 			colTable = imP.getpalette()
 			for val in range(IndexingValue):
@@ -446,6 +482,8 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 		if event == sg.WIN_CLOSED:
 			break
 	window.close()
+
+	return existingColLen, existingColType, existingColList
 
 #########################################################################
 #                       FILE SAVED WINDOW                               #
@@ -498,8 +536,8 @@ def main():
 	]
 
 	leftCol_layout = [
-		[sg.Frame('Colour Settings', [
-			[sg.Radio('Indexed', 1, key='-RB_COL_CUS-', enable_events=True, disabled=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
+		[sg.Frame('Color Settings', [
+			[sg.Radio('Indexed', 1, key='-RB_COL_CUS-', enable_events=True), sg.Button('Configure', key='-BTN_CONFIG-', expand_x=True, disabled=False)],
 			[sg.Radio('1bpp (Monochrome B/W)', 1, key='-RB_COL_1BM-', enable_events=True)],
 			[sg.Radio('4bpp (16 fixed Colors', 1, key='-RB_COL_4C-', enable_events=True)],
 			[sg.Radio('8bpp (256 Colors - RGB332)', 1, key='-RB_COL_8B-', enable_events=True)],
@@ -555,6 +593,9 @@ def main():
 
 	OriginalImage = None	# Original Image, do not change
 	ImageToDisplay = None	# Image to Display and manipulate
+	ColorIndexLength = 2
+	ColorIndexType = ConversionType.INDEXED888
+	ColorIndexTable = [255] * 3 * 256
 
 	# Setup the threaded timer beforehand, used in TimerStrategy
 	timer_windowResize = threading.Timer(THREADWAIT, resizeImage,args=(window, ImageToDisplay, ImageOffset))
@@ -570,19 +611,19 @@ def main():
 		if (events == '-BTN_PREV-'):
 			if (ImageToDisplay == None): continue
 			conType = ConversionType.UNDEFINED
-			if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
+			if values['-RB_COL_CUS-'] == True:	conType = ColorIndexType
 			if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
 			if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
 			if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
 			if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
 			if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
 
-			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'])
+			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, ColorIndexLength, ColorIndexTable, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
 
 		# Open configuration
 		if (events == '-BTN_CONFIG-'):
-			get_indexing(OriginalImage, None, None, None)
+			ColorIndexLength, ColorIndexType, ColorIndexTable = get_indexing(OriginalImage, ColorIndexLength, ColorIndexType, ColorIndexTable)
 
 		# About Window
 		if (events == 'About'):
@@ -610,7 +651,7 @@ def main():
 			if (filename):
 				print(filename)
 				conType = ConversionType.UNDEFINED
-				if values['-RB_COL_CUS-'] == True:	conType = ConversionType.INDEXED
+				if values['-RB_COL_CUS-'] == True:	conType = ColorIndexType
 				if values['-RB_COL_1BM-'] == True:	conType = ConversionType.MONOCHROME
 				if values['-RB_COL_4C-'] == True:	conType = ConversionType.RGB16C
 				if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
