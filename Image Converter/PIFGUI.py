@@ -4,11 +4,12 @@
 # (Sorry if things don't look too professional, just started with python a month ago)
 
 import io
+import sys
 import threading
 from unicodedata import name
-from dataclasses import dataclass
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
+import PIL.ImageColor
 from enum import Enum
 from numpy import imag		# requires python 3.10 or higher
 
@@ -52,6 +53,9 @@ class CompressionType(Enum):
 	NO_COMPRESSION 	= 0
 	RLE_COMPRESSION = 1
 
+#########################################################################
+#                     Convert Image to Bytes                            #
+#########################################################################
 def convToBytes(image, resize=None):
 	img = image.copy()
 	
@@ -66,13 +70,19 @@ def convToBytes(image, resize=None):
 	del img
 	return ImgBytes.getvalue()
 
+#########################################################################
+#                            Resize Image                               #
+#########################################################################
 def resizeImage(window, image, offsets):
 	oldWindowSize = window.size
 	# Resize the image based on the free space available for the [image] element by substracting the offsets from the window size
 	# (Basically avoiding to check the [image]-element's size, trying to save calls here by working with stored variables)
 	window['-IMGBOX-'].update(convToBytes(image, (oldWindowSize[0] - offsets[0], oldWindowSize[1] - offsets[1])))
 
-def convertImage(image, resize, conversion, colLen, colArray, dithering):
+#########################################################################
+#                          Convert the Image                            #
+#########################################################################
+def convertImage(image, resize, conversion, ToDisplay, colLen, colArray, dithering):
 	ImageToProcess = image.resize(tuple(resize),PIL.Image.LANCZOS)
 	ImageToReturn = image.copy()
 	match conversion:
@@ -80,9 +90,39 @@ def convertImage(image, resize, conversion, colLen, colArray, dithering):
 			palImage = PIL.Image.new('P', (16,16))
 			tempColList = []
 			for entries in range(colLen):
-				tempColList.append(colArray[entries * 3] & 0b11100000)		# RED
-				tempColList.append(colArray[entries * 3 + 1] & 0b11100000)	# GREEN
-				tempColList.append(colArray[entries * 3 + 2] & 0b11000000)	# BLUE
+				if (ToDisplay == True):
+					tempColList.append(round(colArray[entries * 3] * 1.138392857))		# RED 3
+					tempColList.append(round(colArray[entries * 3 + 1] * 1.138392857))	# GREEN 3
+					tempColList.append(round(colArray[entries * 3 + 2] * 1.328125))	# BLUE 2
+				else:
+					tempColList.append(colArray[entries * 3] & 0b11100000)		# RED 3
+					tempColList.append(colArray[entries * 3 + 1] & 0b11100000)	# GREEN 3
+					tempColList.append(colArray[entries * 3 + 2] & 0b11000000)	# BLUE 2
+			tempColList.extend(tempColList[:3] * (256 - colLen))
+			palImage.putpalette(tempColList)
+			ImageToReturn = ImageToProcess.quantize(colLen, palette=palImage, dither=dithering)
+		case ConversionType.INDEXED565:
+			palImage = PIL.Image.new('P', (16,16))
+			tempColList = []
+			for entries in range(colLen):
+				if (ToDisplay == True):
+					tempColList.append(round(colArray[entries * 3] * 1.028225806))	# RED 5
+					tempColList.append(round(colArray[entries * 3 + 1] * 1.011904762))	# GREEN 6
+					tempColList.append(round(colArray[entries * 3 + 2] * 1.028225806))	# BLUE 5
+				else:
+					tempColList.append(colArray[entries * 3] & 0b11111000)	# RED 5
+					tempColList.append(colArray[entries * 3 + 1] & 0b11111100)	# GREEN 6
+					tempColList.append(colArray[entries * 3 + 2] & 0b11111000)	# BLUE 5
+			tempColList.extend(tempColList[:3] * (256 - colLen))
+			palImage.putpalette(tempColList)
+			ImageToReturn = ImageToProcess.quantize(colLen, palette=palImage, dither=dithering)
+		case ConversionType.INDEXED888:
+			palImage = PIL.Image.new('P', (16,16))
+			tempColList = []
+			for entries in range(colLen):
+				tempColList.append(colArray[entries * 3])		# RED
+				tempColList.append(colArray[entries * 3 + 1])	# GREEN
+				tempColList.append(colArray[entries * 3 + 2])	# BLUE
 			tempColList.extend(tempColList[:3] * (256 - colLen))
 			palImage.putpalette(tempColList)
 			ImageToReturn = ImageToProcess.quantize(colLen, palette=palImage, dither=dithering)
@@ -98,7 +138,14 @@ def convertImage(image, resize, conversion, colLen, colArray, dithering):
 			palImage = PIL.Image.new('P', (16,16))
 			palList = []
 			for colors in range(256):
-				palList.extend([colors & 0b11100000, (colors & 0b00011100) << 3, (colors & 0b00000011) << 6])
+				if (ToDisplay == True):
+					palList.append(round((colors & 0b11100000) * 1.138392857))		# RED 5
+					palList.append(round(((colors & 0b00011100) << 3) * 1.138392857))	# GREEN 6
+					palList.append(round(((colors & 0b00000011) << 6) * 1.328125))	# BLUE 5
+				else:
+					palList.append(colors & 0b11100000)			# RED 5
+					palList.append((colors & 0b00011100) << 3)	# GREEN 6
+					palList.append((colors & 0b00000011) << 6)	# BLUE 5
 			palImage.putpalette(palList)
 			ImageToReturn = ImageToProcess.quantize(256, palette=palImage, dither=dithering)
 		case ConversionType.RGB565:
@@ -106,15 +153,23 @@ def convertImage(image, resize, conversion, colLen, colArray, dithering):
 			for x in range(ImageToReturn.width):
 				for y in range(ImageToReturn.height):
 					color = list(ImageToReturn.getpixel((x,y)))
-					color[0] = color[0] & 0xF8
-					color[1] = color[1] & 0xFC
-					color[2] = color[2] & 0xF8
+					if (ToDisplay == True):
+						color[0] = round((color[0] & 0xF8) * 1.028225806)
+						color[1] = round((color[1] & 0xFC) * 1.011904762)
+						color[2] = round((color[2] & 0xF8) * 1.028225806)
+					else:
+						color[0] = color[0] & 0xF8
+						color[1] = color[1] & 0xFC
+						color[2] = color[2] & 0xF8
 					ImageToReturn.putpixel((x,y), tuple(color))
 		case ConversionType.RGB888:
 			ImageToReturn = ImageToProcess.copy()
 	del ImageToProcess
 	return ImageToReturn
 
+#########################################################################
+#                           RLE Compression                             #
+#########################################################################
 def rle_compress(pixelArray):
 	outlist = []
 	rlePos = []
@@ -184,7 +239,10 @@ def rle_compress(pixelArray):
 	rlePos.append(None)
 	return rlePos,outlist
 
-def convertToPIF(image, resize, conversion, dithering, compression):
+#########################################################################
+#               Convert Image & Color Table to PIF                      #
+#########################################################################
+def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, compression):
 	class ImageH(Enum):
 		IMAGETYPE = 0
 		BITSPERPIXEL = 1
@@ -213,11 +271,28 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 		imageHeader[ImageH.COMPRTYPE.value] = 0x7DDE
 
 	if ((conversion != ConversionType.RGB888) and (conversion != ConversionType.RGB565)):
-		TemporaryImage = convertImage(image, resize, conversion, dithering)
+		TemporaryImage = convertImage(image, resize, conversion, False, colorLength, colorTable, dithering)
 	else:
-		TemporaryImage = convertImage(image, resize, ConversionType.RGB888, dithering)
+		TemporaryImage = convertImage(image, resize, ConversionType.RGB888, False, colorLength, colorTable, dithering)
 
 	match conversion:
+		case ConversionType.INDEXED332 or ConversionType.INDEXED565 or ConversionType.INDEXED888:
+			# Write the Image Type and Bits per Pixel into the imageHeader
+			imageHeader[ImageH.IMAGETYPE.value] = 0x4942	# Indexed8 mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = int(colorLength - 1).bit_length()
+			# Check every pixel and pack it into a byte if possible
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
+					color = list(TemporaryImage.getpixel((x,y)))
+					index = None
+					# Get the index according to the color table
+					for check in range(colorLength):
+						if ((color[0] == colorTable[3 * check]) and (color[1] == colorTable[3 * check + 1]) and (color[2] == colorTable[3 * check + 2])):
+							index = check
+							break
+					if (index == None):
+						sys.exit("Error finding matching color to the color table!")
+					
 		case ConversionType.MONOCHROME:
 			# Write the Image Type and Bits per Pixel into the imageHeader
 			imageHeader[ImageH.IMAGETYPE.value] = 0x7DAA	# B/W mode selected
@@ -286,8 +361,6 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 				for y in range(TemporaryImage.height):
 					color = list(TemporaryImage.getpixel((x,y)))
 					imageData.append((color[0] << 16) | (color[1] << 8) | (color[2]))
-		case ConversionType.INDEXED:
-			print('welp, nothing to see here yet')
 	
 	# compress the data if requested
 	if (compression):
@@ -302,6 +375,9 @@ def convertToPIF(image, resize, conversion, dithering, compression):
 	return imageHeader,colorTable,imageData,rlePos
 
 # Python is annoying with that stuff, should have used C#
+#########################################################################
+#                         Save PIF as binary                            #
+#########################################################################
 def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	# I'm old school, so I wanna allocate the space before processing the data
 	tTotalPIF = []
@@ -384,10 +460,14 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 #                    INDEXING OPTIONS WINDOW                            #
 #########################################################################
 def get_indexing(image, existingColLen, existingColType, existingColList):
+	dfFont = list(sg.DEFAULT_FONT)
+	dfFont[1] = 30
+	dfFont = tuple(dfFont)
+
 	left_col = [
 		[sg.Frame('Lookup Table Color Settings', [
-			[sg.Radio('8BPP - RGB332', group_id=10, key='RB_8')],
-			[sg.Radio('16BPP - RGB565', group_id=10, key='RB_16')],
+			[sg.Radio('8BPP - RGB332', group_id=10, key='RB_8', enable_events=True)],
+			[sg.Radio('16BPP - RGB565', group_id=10, key='RB_16', enable_events=True)],
 			[sg.Radio('24BPP - RGB888', group_id=10, key='RB_24', default=True)]
 		], expand_x=True)],
 		[sg.Frame('Amount of Indexed Colors', [
@@ -408,8 +488,8 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 				orientation='h', relief=sg.RELIEF_SUNKEN, key='-PANE-'),
 			sg.Column([[
 					sg.Frame(f'Color Index {val + 1}',[[
-						sg.Text('#ffffff', size=(15,None), key=f'C_{val}'),
-						sg.Push(),
+						sg.Input('#ffffff', size=(8,None), key=f'C_{val}', disabled=True, enable_events=True),
+						sg.Text('⚫', key=f'L_{val}', justification='center', font=dfFont, text_color='#ffffff'),
 						sg.ColorChooserButton(f'Color Picker', target=f'C_{val}', bind_return_key=True)]],
 					key=f'F_{val}', expand_x=True)] for val in range(256)
 			],key='LCOL', expand_x=True, justification='c', scrollable=True, vertical_scroll_only=True)],
@@ -422,7 +502,8 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 
 	for val in range(IndexingValue):
 		window[f'C_{val}'].update(value=f'#{existingColList[val * 3]:0{2}x}{existingColList[val * 3 + 1]:0{2}x}{existingColList[val * 3 + 2]:0{2}x}')
-
+		window[f'L_{val}'].update(text_color=window[f'C_{val}'].get())
+	
 	if (existingColType == ConversionType.INDEXED332):
 		window['RB_8'].update(True)
 	elif (existingColType == ConversionType.INDEXED565):
@@ -430,12 +511,59 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 
 	while True:
 		event, values = window.read()
-		print(event, values)
+
+		if (event=='RB_8' or event=='RB_16'):
+			for val in range (IndexingValue):
+				inColor = list(PIL.ImageColor.getrgb(window[f'C_{val}'].get()))
+				labelColor = [0,0,0]
+				if (values['RB_8'] == True):
+					inColor[0] = inColor[0] & 0xE0
+					inColor[1] = inColor[1] & 0xE0
+					inColor[2] = inColor[2] & 0xC0
+					labelColor[0] = round(inColor[0] * 1.138392857)
+					labelColor[1] = round(inColor[1] * 1.138392857)
+					labelColor[2] = round(inColor[2] * 1.328125)
+				elif (values['RB_16'] == True):
+					inColor[0] = inColor[0] & 0xF8
+					inColor[1] = inColor[1] & 0xFC
+					inColor[2] = inColor[2] & 0xF8
+					labelColor[0] = round(inColor[0] * 1.028225806)
+					labelColor[1] = round(inColor[1] * 1.011904762)
+					labelColor[2] = round(inColor[2] * 1.028225806)
+				else:
+					labelColor[0] = inColor[0]
+					labelColor[1] = inColor[1]
+					labelColor[2] = inColor[2]
+				window[f'C_{val}'].update(value=f'#{inColor[0]:0{2}x}{inColor[1]:0{2}x}{inColor[2]:0{2}x}')
+				window[f'L_{val}'].update(text_color=f'#{labelColor[0]:0{2}x}{labelColor[1]:0{2}x}{labelColor[2]:0{2}x}')	
 
 		if (event == 'BTN_INC'):
 			if (IndexingValue < 255):
 				IndexingValue = IndexingValue + 1
 				window['TBX_NUM'].update(IndexingValue)
+
+				inColor = list(PIL.ImageColor.getrgb(window[f'C_{IndexingValue - 1}'].get()))
+				labelColor = [0,0,0]
+				if (values['RB_8'] == True):
+					inColor[0] = inColor[0] & 0xE0
+					inColor[1] = inColor[1] & 0xE0
+					inColor[2] = inColor[2] & 0xC0
+					labelColor[0] = round(inColor[0] * 1.138392857)
+					labelColor[1] = round(inColor[1] * 1.138392857)
+					labelColor[2] = round(inColor[2] * 1.328125)
+				elif (values['RB_16'] == True):
+					inColor[0] = inColor[0] & 0xF8
+					inColor[1] = inColor[1] & 0xFC
+					inColor[2] = inColor[2] & 0xF8
+					labelColor[0] = round(inColor[0] * 1.028225806)
+					labelColor[1] = round(inColor[1] * 1.011904762)
+					labelColor[2] = round(inColor[2] * 1.028225806)
+				else:
+					labelColor[0] = inColor[0]
+					labelColor[1] = inColor[1]
+					labelColor[2] = inColor[2]
+				window[f'C_{IndexingValue - 1}'].update(value=f'#{inColor[0]:0{2}x}{inColor[1]:0{2}x}{inColor[2]:0{2}x}')
+				window[f'L_{IndexingValue - 1}'].update(text_color=f'#{labelColor[0]:0{2}x}{labelColor[1]:0{2}x}{labelColor[2]:0{2}x}')	
 
 		if (event == 'BTN_DEC'):
 			if (IndexingValue > 2):
@@ -462,13 +590,15 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 			elif (values['RB_24'] == True):
 				existingColType = ConversionType.INDEXED888
 			for val in range(IndexingValue):
-				hexColors = PIL.ImageColor.getrgb(window[f'C_{val}'].get())
-				existingColList[val * 3] = hexColors[0]
-				existingColList[val * 3 + 1] = hexColors[1]
-				existingColList[val * 3 + 2] = hexColors[2]
-			break
-
-		if (event == 'BTN_CL'):
+				if (window[f'C_{val}'].get() == 'None'):
+					existingColList[val * 3] = 0
+					existingColList[val * 3 + 1] = 0
+					existingColList[val * 3 + 2] = 0
+				else:
+					hexColors = PIL.ImageColor.getrgb(window[f'C_{val}'].get())
+					existingColList[val * 3] = hexColors[0]
+					existingColList[val * 3 + 1] = hexColors[1]
+					existingColList[val * 3 + 2] = hexColors[2]
 			break
 
 		if (not image == None) and (event == 'BTN_AN'):
@@ -477,9 +607,35 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 			colTable = imP.getpalette()
 			for val in range(IndexingValue):
 				window[f'C_{val}'].update(value=f'#{colTable[val * 3]:0{2}x}{colTable[val * 3 + 1]:0{2}x}{colTable[val * 3 + 2]:0{2}x}')
+				window[f'L_{val}'].update(text_color=window[f'C_{val}'].get())
 			print('x')
 
-		if event == sg.WIN_CLOSED:
+		if (isinstance(event, str) and event[0] == 'C' and event[1] == '_'):
+			triggeredText = int(event.split('_')[1])
+			inColor = list(PIL.ImageColor.getrgb(window[event].get()))
+			labelColor = [0,0,0]
+			if (values['RB_8'] == True):
+				inColor[0] = inColor[0] & 0xE0
+				inColor[1] = inColor[1] & 0xE0
+				inColor[2] = inColor[2] & 0xC0
+				labelColor[0] = round(inColor[0] * 1.138392857)
+				labelColor[1] = round(inColor[1] * 1.138392857)
+				labelColor[2] = round(inColor[2] * 1.328125)
+			elif (values['RB_16'] == True):
+				inColor[0] = inColor[0] & 0xF8
+				inColor[1] = inColor[1] & 0xFC
+				inColor[2] = inColor[2] & 0xF8
+				labelColor[0] = round(inColor[0] * 1.028225806)
+				labelColor[1] = round(inColor[1] * 1.011904762)
+				labelColor[2] = round(inColor[2] * 1.028225806)
+			else:
+				labelColor[0] = inColor[0]
+				labelColor[1] = inColor[1]
+				labelColor[2] = inColor[2]
+			window[event].update(value=f'#{inColor[0]:0{2}x}{inColor[1]:0{2}x}{inColor[2]:0{2}x}')
+			window[f'L_{triggeredText}'].update(text_color=f'#{labelColor[0]:0{2}x}{labelColor[1]:0{2}x}{labelColor[2]:0{2}x}')				
+
+		if (event == sg.WIN_CLOSED or event == 'BTN_CL'):
 			break
 	window.close()
 
@@ -618,7 +774,7 @@ def main():
 			if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
 			if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
 
-			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, ColorIndexLength, ColorIndexTable, values['-RB_DIT_FS-'])
+			ImageToDisplay = convertImage(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, True, ColorIndexLength, ColorIndexTable, values['-RB_DIT_FS-'])
 			resizeImage(window, ImageToDisplay, ImageOffset)
 
 		# Open configuration
@@ -657,7 +813,7 @@ def main():
 				if values['-RB_COL_8B-'] == True:	conType = ConversionType.RGB332
 				if values['-RB_COL_16B-'] == True:	conType = ConversionType.RGB565
 				if values['-RB_COL_24B-'] == True:	conType = ConversionType.RGB888
-				imageHeader, colorTable, imageData, rlePos = convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
+				imageHeader, colorTable, imageData, rlePos = convertToPIF(OriginalImage, ((int)(values['-IN_SIZE_X-']),(int)(values['-IN_SIZE_Y-'])), conType, ColorIndexLength, ColorIndexTable, values['-RB_DIT_FS-'], values['-RB_COMP_RLE-'])
 				isize = savePIFbinary(imageHeader, colorTable, imageData, rlePos, filename)
 				compression = values['-RB_COMP_RLE-']
 				file_saved(conType.name, compression, isize)
