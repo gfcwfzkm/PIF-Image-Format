@@ -9,7 +9,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
    - RGB332	- 8bit per Pixel Image, further reducing colors and size
    - RGB16C	- 4bit per Pixel Image, fixed Windows/IBM Style 16 colors
    - B/W - 1bit per Pixel Image, only Black and White
-   - Indexed - Custom Pixel bitwidth and RGB888 color table
+   - Indexed - Custom Pixel bitwidth, using a RGB332, RGB565 or RGB888 color table
  - Basic Compression (RLE)
  - Ease of use and implementation
 
@@ -52,7 +52,13 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Dithering Options
 	- [x] Saving as .PIF
 	- [ ] Custom (Indexed) options
-	- [ ] Saving as .h Header
-	- [ ] CLI Implementation
  - [ ] Image viewer
- - [ ] Portable C Driver Code
+	- [ ] Display the image
+	- [ ] Show details and stats
+	- [ ] Allow Export to other image formats
+ - [ ] Portable C Library Code & Examples
+	- [ ] Reference implementation for various platforms
+		- [ ] Arduino / Arduino-Framework
+		- [ ] ATxmega
+		- [ ] GD32VF103 (RISC-V)
+	- [ ] Universal / Portable C Library

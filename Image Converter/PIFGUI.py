@@ -4,14 +4,11 @@
 # (Sorry if things don't look too professional, just started with python a month ago)
 
 import io
-import sys
 import threading
-from unicodedata import name
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 import PIL.ImageColor
 from enum import Enum
-from numpy import imag		# requires python 3.10 or higher
 
 THREADWAIT = 0.1
 
@@ -139,9 +136,9 @@ def convertImage(image, resize, conversion, ToDisplay, colLen, colArray, ditheri
 			palList = []
 			for colors in range(256):
 				if (ToDisplay == True):
-					palList.append(round((colors & 0b11100000) * 1.138392857))		# RED 5
-					palList.append(round(((colors & 0b00011100) << 3) * 1.138392857))	# GREEN 6
-					palList.append(round(((colors & 0b00000011) << 6) * 1.328125))	# BLUE 5
+					palList.append(round((colors & 0b11100000) * 1.138392857))			# RED 3
+					palList.append(round(((colors & 0b00011100) << 3) * 1.138392857))	# GREEN 3
+					palList.append(round(((colors & 0b00000011) << 6) * 1.328125))		# BLUE 2
 				else:
 					palList.append(colors & 0b11100000)			# RED 5
 					palList.append((colors & 0b00011100) << 3)	# GREEN 6
@@ -252,8 +249,9 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 		COLTABLESIZE = 5
 		COMPRTYPE = 6
 	
+	checkImageType = conversion
 	imageHeader = [0,0,0,0,0,0,0]
-	colorTable = []
+	imageColors = []
 	# Image Data contains the pixels in word-size (min 1 byte, max 3 bytes)
 	# Proper conversion done when saving the data, BITSPERPIXEL to process correctly
 	imageData = []
@@ -270,29 +268,68 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 	if (compression):
 		imageHeader[ImageH.COMPRTYPE.value] = 0x7DDE
 
-	if ((conversion != ConversionType.RGB888) and (conversion != ConversionType.RGB565)):
-		TemporaryImage = convertImage(image, resize, conversion, False, colorLength, colorTable, dithering)
+	if ((checkImageType != ConversionType.RGB888) and (checkImageType != ConversionType.RGB565)):
+		TemporaryImage = convertImage(image, resize, checkImageType, False, colorLength, colorTable, dithering)
 	else:
 		TemporaryImage = convertImage(image, resize, ConversionType.RGB888, False, colorLength, colorTable, dithering)
 
-	match conversion:
-		case ConversionType.INDEXED332 or ConversionType.INDEXED565 or ConversionType.INDEXED888:
+	if ((checkImageType == ConversionType.INDEXED332) or (checkImageType == ConversionType.INDEXED565) or (checkImageType == ConversionType.INDEXED888)):
+		checkImageType = ConversionType.INDEXED332
+
+	match checkImageType:
+		case ConversionType.INDEXED332:
 			# Write the Image Type and Bits per Pixel into the imageHeader
-			imageHeader[ImageH.IMAGETYPE.value] = 0x4942	# Indexed8 mode selected
+			if (conversion == ConversionType.INDEXED332):
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4942	# Indexed8 mode selected
+			elif (conversion == ConversionType.INDEXED565):
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4947	# Indexed16 mode selected
+			else:
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4952	# Indexed24 mode selected
+			imageHeader[ImageH.BITSPERPIXEL.value] = int(colorLength - 1).bit_length()
+
+			# Create the color table
+			for colval in range(colorLength):
+				if (conversion == ConversionType.INDEXED332):
+					imageColors.append(colorTable[colval * 3] | (colorTable[colval * 3 + 1] >> 3) | (colorTable[colval * 3 + 2] >> 6))
+				elif (conversion == ConversionType.INDEXED565):
+					imageColors.append((colorTable[colval * 3] << 8) | (colorTable[colval * 3 + 1] << 3) | (colorTable[colval * 3 + 2] >> 3))
+				else:
+					imageColors.append((colorTable[colval * 3] << 16) | (colorTable[colval * 3 + 1] << 8) | colorTable[colval * 3 + 2])
+
+			# Write the Image Type and Bits per Pixel into the imageHeader
+			if (conversion == ConversionType.INDEXED332):
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4942	# Indexed8 mode selected
+				imageHeader[ImageH.COLTABLESIZE.value] = len(imageColors)
+			elif (conversion == ConversionType.INDEXED565):
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4947	# Indexed16 mode selected
+				imageHeader[ImageH.COLTABLESIZE.value] = len(imageColors) * 2
+			else:
+				imageHeader[ImageH.IMAGETYPE.value] = 0x4952	# Indexed24 mode selected
+				imageHeader[ImageH.COLTABLESIZE.value] = len(imageColors) * 3
 			imageHeader[ImageH.BITSPERPIXEL.value] = int(colorLength - 1).bit_length()
 			# Check every pixel and pack it into a byte if possible
 			for y in range(TemporaryImage.height):
 				for x in range(TemporaryImage.width):
-					color = list(TemporaryImage.getpixel((x,y)))
-					index = None
-					# Get the index according to the color table
-					for check in range(colorLength):
-						if ((color[0] == colorTable[3 * check]) and (color[1] == colorTable[3 * check + 1]) and (color[2] == colorTable[3 * check + 2])):
-							index = check
-							break
-					if (index == None):
-						sys.exit("Error finding matching color to the color table!")
-					
+					index = TemporaryImage.getpixel((x,y))
+					if (imageHeader[ImageH.BITSPERPIXEL.value] <=4):
+						if (imageHeader[ImageH.BITSPERPIXEL.value] >= 3):
+							imageWord |= index << imageCnt
+							imageCnt += 4
+						elif (imageHeader[ImageH.BITSPERPIXEL.value] == 2):
+							imageWord |= index << imageCnt
+							imageCnt += 2
+						elif (imageHeader[ImageH.BITSPERPIXEL.value] == 1):
+							imageWord |= index << imageCnt
+							imageCnt += 1
+						if (imageCnt >= 8):
+							imageData.append(imageWord)
+							imageWord = 0
+							imageCnt = 0
+					else:
+						imageData.append(index)
+			# Add remaining Pixels, if there are any
+			if (imageCnt > 0):
+				imageData.append(imageWord)					
 		case ConversionType.MONOCHROME:
 			# Write the Image Type and Bits per Pixel into the imageHeader
 			imageHeader[ImageH.IMAGETYPE.value] = 0x7DAA	# B/W mode selected
@@ -372,7 +409,7 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 	imageHeader[ImageH.IMAGESIZE.value] = len(imageData)
 
 	# Return the image header, color table and image data
-	return imageHeader,colorTable,imageData,rlePos
+	return imageHeader,imageColors,imageData,rlePos
 
 # Python is annoying with that stuff, should have used C#
 #########################################################################
@@ -383,7 +420,14 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tTotalPIF = []
 	tPIFHeader = [None] * 12
 	tImgHeader = [None] * 16
-	tColTable = [None] * 3 * imageHeader[5]
+	
+	if (imageHeader[0] == 0x4942):
+		tColTable = [None] * imageHeader[5]
+	elif (imageHeader[0] == 0x4947):
+		tColTable = [None] * 2 * imageHeader[5]
+	else:
+		tColTable = [None] * 3 * imageHeader[5]
+	
 	tImgData = []
 
 	tPIFHeader[0] = 0x50
@@ -409,11 +453,18 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tImgHeader[15] = (imageHeader[6] & 0xFF00) >> 8
 
 	if (imageHeader[5] > 0):
-		for index in range(colorTable):
-			tColTable[index * 3] = (colorTable[index] & 0xFF0000) >> 16
-			tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
-			tColTable[index * 3 + 2] = (colorTable[index] & 0xFF)
-	
+		for index in range(imageHeader[5]):
+			if (imageHeader[0] == 0x4942):
+				tColTable[index] = colorTable[index]
+			elif (imageHeader[0] == 0x4947):
+				tColTable[index * 2] = (colorTable[index] & 0xFF)
+				tColTable[index * 2 + 1] = (colorTable[index] & 0xFF00) >> 8
+			else:
+				tColTable = [None] * 3 * imageHeader[5]
+				tColTable[index * 3] = (colorTable[index] & 0xFF0000) >> 16
+				tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
+				tColTable[index * 3 + 2] = (colorTable[index] & 0xFF)
+
 	rleIndex = 0
 	for index in range(len(imageData)):
 		# RLE Data is always only 1 byte large, while image data can be up to three bytes large
@@ -449,11 +500,11 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tTotalPIF[10] = (iStart & 0xFF0000) >> 16
 	tTotalPIF[11] = (iStart & 0xFF000000) >> 24
 
-	bImageHeader = bytes(tTotalPIF)
-	PIFFile = open(path, "wb")
 	# write to file
-	PIFFile.write(bImageHeader)
+	PIFFile = open(path, "wb")
+	PIFFile.write(bytes(tTotalPIF))
 	PIFFile.close()
+
 	return iSize
 
 #########################################################################
@@ -608,7 +659,6 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 			for val in range(IndexingValue):
 				window[f'C_{val}'].update(value=f'#{colTable[val * 3]:0{2}x}{colTable[val * 3 + 1]:0{2}x}{colTable[val * 3 + 2]:0{2}x}')
 				window[f'L_{val}'].update(text_color=window[f'C_{val}'].get())
-			print('x')
 
 		if (isinstance(event, str) and event[0] == 'C' and event[1] == '_'):
 			triggeredText = int(event.split('_')[1])
@@ -791,15 +841,14 @@ def main():
 			# Check if a image has been selected (aka popup returned a file path)
 			if (filename):	
 				OriginalImage = PIL.Image.open(filename).convert("RGB")
-				ImageToDisplay = OriginalImage
-				resizeImage(window, ImageToDisplay, ImageOffset)
 				window['-RB_COL_24B-'].update(True)
 				window['-RB_DIT_FS-'].update(disabled=True)
 				window['-RB_DIT_NO-'].update(True)
 				window['-TBXPATH-'].update(filename)
-				window['-IN_SIZE_X-'].update(ImageToDisplay.size[0])
-				window['-IN_SIZE_Y-'].update(ImageToDisplay.size[1])
-
+				window['-IN_SIZE_X-'].update(OriginalImage.size[0])
+				window['-IN_SIZE_Y-'].update(OriginalImage.size[1])
+				ImageToDisplay = convertImage(OriginalImage, (OriginalImage.size[0], OriginalImage.size[1]), ConversionType.RGB888, True, ColorIndexLength, ColorIndexTable, False)
+				resizeImage(window, ImageToDisplay, ImageOffset)
 		# Convert & save the PIF file
 		if ((events == 'Save') or (events == '-BTN_SAVE-')):
 			if (ImageToDisplay == None): continue
