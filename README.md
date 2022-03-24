@@ -47,11 +47,11 @@ The sizes could likely be further reduced and colors optimized when a indexed 16
 A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
- - [ ] Image Converter
+ - [x] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
 	- [x] Saving as .PIF
-	- [ ] Custom (Indexed) options
+	- [x] Custom (Indexed) options
  - [ ] Image viewer
 	- [ ] Display the image
 	- [ ] Show details and stats
