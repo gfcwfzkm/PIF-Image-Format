@@ -424,9 +424,9 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	if (imageHeader[0] == 0x4942):
 		tColTable = [None] * imageHeader[5]
 	elif (imageHeader[0] == 0x4947):
-		tColTable = [None] * 2 * imageHeader[5]
+		tColTable = [None] * imageHeader[5]
 	else:
-		tColTable = [None] * 3 * imageHeader[5]
+		tColTable = [None] * imageHeader[5]
 	
 	tImgData = []
 
@@ -453,7 +453,7 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tImgHeader[15] = (imageHeader[6] & 0xFF00) >> 8
 
 	if (imageHeader[5] > 0):
-		for index in range(imageHeader[5]):
+		for index in range(len(colorTable)):
 			if (imageHeader[0] == 0x4942):
 				tColTable[index] = colorTable[index]
 			elif (imageHeader[0] == 0x4947):
