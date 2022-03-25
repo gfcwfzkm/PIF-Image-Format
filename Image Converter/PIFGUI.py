@@ -5,10 +5,10 @@
 
 import io
 import threading
+from enum import Enum
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 import PIL.ImageColor
-from enum import Enum
 
 THREADWAIT = 0.1
 
