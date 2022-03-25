@@ -227,6 +227,8 @@ def rle_compress(pixelArray):
 			tempArray[1] = pixelArray[pixCnt]
 			pixCnt += 1
 		
+		if (pixCnt >= len(pixelArray)):	outCnt += 1
+
 		rlePos.append(len(outlist))
 		outlist.append(outCnt - 1)
 		outlist.append(tempArray[0])
@@ -371,8 +373,8 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 			TemporaryImage = TemporaryImage.convert('RGB')
 			imageHeader[ImageH.IMAGETYPE.value] = 0x1E53	# RGB332 mode selected
 			imageHeader[ImageH.BITSPERPIXEL.value] = 8		# 8 Bits per Pixel
-			for x in range(TemporaryImage.width):
-				for y in range(TemporaryImage.height):
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
 					color = list(TemporaryImage.getpixel((x,y)))
 					color[0] = color[0] & 0xE0	# R
 					color[1] = color[1] & 0x1C	# G
@@ -383,8 +385,8 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 			imageHeader[ImageH.BITSPERPIXEL.value] = 16		# 16 Bits per Pixel
 			# Relatively easy here, just trim the 24-bit RGB image to 16-bit RGB
 			# and add it to the list
-			for x in range(TemporaryImage.width):
-				for y in range(TemporaryImage.height):
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
 					color = list(TemporaryImage.getpixel((x,y)))
 					color[0] = color[0] & 0xF8	# R
 					color[1] = color[1] & 0xFC	# G
@@ -394,8 +396,8 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 			imageHeader[ImageH.IMAGETYPE.value] = 0x433C	# RGB888 mode selected
 			imageHeader[ImageH.BITSPERPIXEL.value] = 24		# 24 Bits per Pixel
 			# Fit the color into 24bit and add it to the list
-			for x in range(TemporaryImage.width):
-				for y in range(TemporaryImage.height):
+			for y in range(TemporaryImage.height):
+				for x in range(TemporaryImage.width):
 					color = list(TemporaryImage.getpixel((x,y)))
 					imageData.append((color[0] << 16) | (color[1] << 8) | (color[2]))
 	
@@ -443,10 +445,6 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tImgHeader[5] = (imageHeader[2] & 0xFF00) >> 8
 	tImgHeader[6] = imageHeader[3] & 0xFF
 	tImgHeader[7] = (imageHeader[3] & 0xFF00) >> 8
-	tImgHeader[8] = imageHeader[4] & 0xFF
-	tImgHeader[9] = (imageHeader[4] & 0xFF00) >> 8
-	tImgHeader[10] = (imageHeader[4] & 0xFF0000) >> 16
-	tImgHeader[11] = (imageHeader[4] & 0xFF000000) >> 24
 	tImgHeader[12] = imageHeader[5] & 0xFF
 	tImgHeader[13] = (imageHeader[5] & 0xFF00) >> 8
 	tImgHeader[14] = imageHeader[6] & 0xFF
@@ -481,6 +479,13 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 				tImgData.append((imageData[index] & 0xFF0000) >> 16)
 			else:
 				tImgData.append(imageData[index] & 0xFF)
+
+	imageHeader[4] = len(tImgData)
+
+	tImgHeader[8] = imageHeader[4] & 0xFF
+	tImgHeader[9] = (imageHeader[4] & 0xFF00) >> 8
+	tImgHeader[10] = (imageHeader[4] & 0xFF0000) >> 16
+	tImgHeader[11] = (imageHeader[4] & 0xFF000000) >> 24
 
 	tTotalPIF.extend(tPIFHeader)
 	tTotalPIF.extend(tImgHeader)
