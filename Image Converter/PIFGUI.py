@@ -1,7 +1,7 @@
 # PIF GUI Converter by gfcwfzkm (02.2022)
 # Dependencies: pillow & pysimplegui
 # Might require python 3.10 or higher
-# (Sorry if things don't look too professional, just started with python a month ago)
+# (Sorry if things don't look too professional, functionality first, optimizations later)
 
 import io
 import threading
