@@ -29,13 +29,13 @@ The Lenna test image was used, found in the test_images folder:
 |---------------|-------------------|-----|-------------|
 | Bitmap (.BPP) | 786 486           | 24  | None        |
 | PIF RGB888    | 786 460           | 24  | None        |
-| PIF RGB888    | 699 570           | 24  | RLE         |
+| PIF RGB888    | 739 358           | 24  | RLE         |
 | PIF RGB565    | 524 316           | 16  | None        |
-| PIF RGB565    | 467 955           | 16  | RLE         |
+| PIF RGB565    | 434 320           | 16  | RLE         |
 | PIF RGB332    | 262 172           | 8   | None        |
-| PIF RGB332    | 105 682           | 8   | RLE         |
+| PIF RGB332    | 160 893           | 8   | RLE         |
 | PIF RGB16C    | 131 100           | 4   | None        |
-| PIF RGB16C    | 78 757            | 4   | RLE         |
+| PIF RGB16C    | 67 280            | 4   | RLE         |
 | PIF B/W       | 32 796            | 1   | None        |
 | PIF B/W       | 14 144            | 1   | RLE        |
 
