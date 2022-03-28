@@ -199,6 +199,12 @@ namespace PIF_Viewer
 		byte[] ConvertToRGB888(byte[] nonRGB888_ImageData, UInt16 ImageType, UInt32 imageSize)
 		{
 			byte[] RGB888 = new byte[imageSize * 3];
+
+            for (int i = 0; i < RGB888.Length; i++)
+            {
+                RGB888[i] = 0;
+            }
+
 			UInt32 ImageDataPointer = 0;
 
 			if (ImageType == PIFFormat.ImageTypeRGB565)
@@ -237,6 +243,20 @@ namespace PIF_Viewer
 					ImageDataPointer += 3;
 				}
 			}
+            else if (ImageType == PIFFormat.ImageTypeBLWH)
+            {
+                for (int i = 0; i < imageSize; i++)
+                {
+                    int val = (nonRGB888_ImageData[i / 8] & (1<< (i % 8)));
+                    if (val != 0)
+                    {
+                        RGB888[ImageDataPointer] = 0xFF;
+                        RGB888[ImageDataPointer + 1] = 0xFF;
+                        RGB888[ImageDataPointer + 2] = 0xFF;
+                    }
+                    ImageDataPointer += 3;
+                }
+            }
 			return RGB888;
 		}
 
@@ -256,6 +276,15 @@ namespace PIF_Viewer
 			{
 				uncompressedData = new byte[finalImageResolution * 2];
 			}
+            else if (BitsPerPixel == 8)
+            {
+                uncompressedData = new byte[finalImageResolution];
+            }
+            else if (BitsPerPixel == 4)
+            {
+                uncompressedData = new byte[finalImageResolution / 2];
+            }
+            
 
 			for (UInt32 i = 0; i < uncompressedData.Length; i++)
 			{
