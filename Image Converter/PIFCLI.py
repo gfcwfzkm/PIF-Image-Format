@@ -75,7 +75,6 @@ def rle_compress(pixelArray):
 				pixCnt += 1
 				# Makeshift "Do-While" loop
 				if (pixCnt >= len(pixelArray)):
-					outCnt += 1
 					tempArray[outCnt] = None
 					break
 				if not (outCnt < 127):
@@ -120,7 +119,7 @@ def rle_compress(pixelArray):
 	rlePos.append(None)
 	return rlePos,outlist
 
-toCompress = [14,15,15,15,16,15]
+toCompress = [249,249,250,250,251,251,252,252,253,253,254,254,255]
 print(rle_compression(toCompress))
 rleposlist, returnlist = rle_compress(toCompress)
 print(rleposlist)

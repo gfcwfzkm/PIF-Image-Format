@@ -238,7 +238,6 @@ def rle_compress(pixelArray):
 				pixCnt += 1
 				# Makeshift "Do-While" loop
 				if (pixCnt >= len(pixelArray)):
-					outCnt += 1
 					tempArray[outCnt] = None
 					break
 				if not (outCnt < 127):
@@ -422,9 +421,9 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 				for x in range(TemporaryImage.width):
 					color = list(TemporaryImage.getpixel((x,y)))
 					color[0] = color[0] & 0xE0	# R
-					color[1] = color[1] & 0x1C	# G
-					color[2] = color[2] & 0x03	# B
-					imageData.append(color[0] | color[1] | color[2])
+					color[1] = color[1] & 0xE0	# G
+					color[2] = color[2] & 0xC0	# B
+					imageData.append(color[0] | (color[1] >> 3) | (color[2]) >> 6)
 		case ConversionType.RGB565:
 			imageHeader[ImageH.IMAGETYPE.value] = 0xE5C5	# RGB565 mode selected
 			imageHeader[ImageH.BITSPERPIXEL.value] = 16		# 16 Bits per Pixel
@@ -436,7 +435,7 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 					color[0] = color[0] & 0xF8	# R
 					color[1] = color[1] & 0xFC	# G
 					color[2] = color[2] & 0xF8	# B
-					imageData.append((color[0] << 8) | (color[1] << 5) | (color[2]))
+					imageData.append((color[0] << 8) | (color[1] << 3) | ((color[2] >> 3)))
 		case ConversionType.RGB888:
 			imageHeader[ImageH.IMAGETYPE.value] = 0x433C	# RGB888 mode selected
 			imageHeader[ImageH.BITSPERPIXEL.value] = 24		# 24 Bits per Pixel
@@ -504,9 +503,9 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 				tColTable[index * 2 + 1] = (colorTable[index] & 0xFF00) >> 8
 			else:
 				tColTable = [None] * 3 * imageHeader[5]
-				tColTable[index * 3] = (colorTable[index] & 0xFF0000) >> 16
+				tColTable[index * 3] = (colorTable[index] & 0xFF) 
 				tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
-				tColTable[index * 3 + 2] = (colorTable[index] & 0xFF)
+				tColTable[index * 3 + 2] = (colorTable[index] & 0xFF0000) >> 16
 
 	rleIndex = 0
 	for index in range(len(imageData)):
@@ -902,7 +901,7 @@ def main():
 		# Convert & save the PIF file
 		if ((events == 'Save') or (events == '-BTN_SAVE-')):
 			if (ImageToDisplay == None): continue
-			filename = sg.popup_get_file('Save PIF Image', save_as=True, no_window=True, show_hidden=False, file_types=(("PIF Image", "*.pif"),))
+			filename = sg.popup_get_file('Save PIF Image','Save PIF Image', save_as=True, default_extension='Test123', no_window=True, show_hidden=False, file_types=(("PIF Image", "*.pif"),))
 			if (filename):
 				print(filename)
 				conType = ConversionType.UNDEFINED

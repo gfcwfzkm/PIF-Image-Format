@@ -101,7 +101,7 @@
 			// Spacer1
 			// 
 			this.Spacer1.Name = "Spacer1";
-			this.Spacer1.Size = new System.Drawing.Size(33, 17);
+			this.Spacer1.Size = new System.Drawing.Size(40, 17);
 			this.Spacer1.Spring = true;
 			// 
 			// Status_IT_LBL
@@ -113,13 +113,13 @@
 			// ImageType_LBL
 			// 
 			this.ImageType_LBL.Name = "ImageType_LBL";
-			this.ImageType_LBL.Size = new System.Drawing.Size(47, 17);
-			this.ImageType_LBL.Text = "RGB888";
+			this.ImageType_LBL.Size = new System.Drawing.Size(12, 17);
+			this.ImageType_LBL.Text = "-";
 			// 
 			// Spacer2
 			// 
 			this.Spacer2.Name = "Spacer2";
-			this.Spacer2.Size = new System.Drawing.Size(33, 17);
+			this.Spacer2.Size = new System.Drawing.Size(40, 17);
 			this.Spacer2.Spring = true;
 			// 
 			// Status_CT_LBL
@@ -137,7 +137,7 @@
 			// Spacer3
 			// 
 			this.Spacer3.Name = "Spacer3";
-			this.Spacer3.Size = new System.Drawing.Size(33, 17);
+			this.Spacer3.Size = new System.Drawing.Size(40, 17);
 			this.Spacer3.Spring = true;
 			// 
 			// Status_DataSizeLBL
@@ -155,7 +155,7 @@
 			// Spacer4
 			// 
 			this.Spacer4.Name = "Spacer4";
-			this.Spacer4.Size = new System.Drawing.Size(33, 17);
+			this.Spacer4.Size = new System.Drawing.Size(40, 17);
 			this.Spacer4.Spring = true;
 			// 
 			// Status_ColorTable_LBL
@@ -173,7 +173,7 @@
 			// Spacer5
 			// 
 			this.Spacer5.Name = "Spacer5";
-			this.Spacer5.Size = new System.Drawing.Size(33, 17);
+			this.Spacer5.Size = new System.Drawing.Size(40, 17);
 			this.Spacer5.Spring = true;
 			// 
 			// Menu
