@@ -466,7 +466,6 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tTotalPIF = []
 	tPIFHeader = [None] * 12
 	tImgHeader = [None] * 16
-	
 	if (imageHeader[0] == 0x4942):
 		tColTable = [None] * imageHeader[5]
 	elif (imageHeader[0] == 0x4947):
@@ -502,7 +501,7 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 				tColTable[index * 2] = (colorTable[index] & 0xFF)
 				tColTable[index * 2 + 1] = (colorTable[index] & 0xFF00) >> 8
 			else:
-				tColTable = [None] * 3 * imageHeader[5]
+				
 				tColTable[index * 3] = (colorTable[index] & 0xFF) 
 				tColTable[index * 3 + 1] = (colorTable[index] & 0xFF00) >> 8
 				tColTable[index * 3 + 2] = (colorTable[index] & 0xFF0000) >> 16

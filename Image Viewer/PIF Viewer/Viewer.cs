@@ -64,7 +64,7 @@ namespace PIF_Viewer
 		{
 			var PIFname = string.Empty;
 			UInt32 ImageOffset, ImageDataSize, ImageDataPointer = 0;
-			UInt16 ImageType, BitsPerPixel, ImageWidth, ImageHeight, ColorTableSize, Compression, ColorTableColors;
+			UInt16 ImageType, BitsPerPixel, ImageWidth, ImageHeight, ColorTableSize, Compression, ColorTableColors = 0;
 			byte[] ImageDataRaw;
 			var PIFbinary = new byte[0];
 			var ColorTable = new byte[0];
@@ -101,32 +101,6 @@ namespace PIF_Viewer
 			ColorTableSize = ReadUINT16(PIFbinary, PIFFormat.OFFSETColorTableSize);
 			Compression = ReadUINT16(PIFbinary, PIFFormat.OFFSETCompression);
 
-			// Note the amount of colors, depending on the selected indexed format (if there is any)
-			if (ImageType == PIFFormat.ImageTypeIND24)
-			{
-				ColorTableColors = Convert.ToUInt16(ColorTableSize / 3);
-			}
-			else if (ImageType == PIFFormat.ImageTypeIND16)
-			{
-				ColorTableColors = Convert.ToUInt16(ColorTableSize / 2);
-			}
-			else
-			{
-				ColorTableColors = ColorTableSize;
-			}
-
-			// If there is a color table, buffer it
-			if ((ImageType & 0xFF00) == PIFFormat.ImageTypeINDEX)
-			{
-				// Indexed Image, contains a color table
-				ColorTable = new byte[ColorTableSize];
-
-				for (UInt16 i = 0; i < ColorTableSize; i++)
-				{
-					ColorTable[i] = PIFbinary[i + PIFFormat.ColorTableOffset];
-				}
-			}
-
 			// Create the Bitmap
 			PIFbitmap = new Bitmap(ImageWidth, ImageHeight, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
 
@@ -148,7 +122,35 @@ namespace PIF_Viewer
 			}
 			else if ((ImageType & 0xFF00) == PIFFormat.ImageTypeINDEX)
 			{
+				// Note the amount of colors, depending on the selected indexed format
+				if (ImageType == PIFFormat.ImageTypeIND24)
+				{
+					ColorTableColors = Convert.ToUInt16(ColorTableSize / 3);
+				}
+				else if (ImageType == PIFFormat.ImageTypeIND16)
+				{
+					ColorTableColors = Convert.ToUInt16(ColorTableSize / 2);
+				}
+				else
+				{
+					ColorTableColors = ColorTableSize;
+				}
+
+				// Indexed Image, contains a color table
+				ColorTable = new byte[ColorTableSize];
+
+				for (UInt16 i = 0; i < ColorTableSize; i++)
+				{
+					ColorTable[i] = PIFbinary[i + PIFFormat.ColorTableOffset];
+				}
+
+				if (ImageType != PIFFormat.ImageTypeIND24)
+				{
+					// Reuse the ConvertToRGB888 function to convert the ColorTable to RGB888
+					ColorTable = ConvertToRGB888(ColorTable, (ImageType == PIFFormat.ImageTypeIND16) ? PIFFormat.ImageTypeRGB565 : PIFFormat.ImageTypeRGB332, ColorTableColors);
+				}
 				// Convert indexed image data to raw RGB888
+				ImageDataRaw = ConvertIndexedToRGB888(ImageDataRaw, ImageType, ColorTable, BitsPerPixel, (UInt32)ImageHeight * ImageWidth);
 			}
 
 			for (int imgH = 0; imgH < ImageHeight; imgH++)
@@ -229,14 +231,9 @@ namespace PIF_Viewer
 			}
 			else if (ImageType == PIFFormat.ImageTypeRGB16C)
 			{
-				for (int i = 0; i < nonRGB888_ImageData.Length; i++)
+				for (int i = 0; i < imageSize; i++)
 				{
-					int ColorNumber = nonRGB888_ImageData[i] & 0x0F;
-					RGB888[ImageDataPointer] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 1) / 1.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));		// Blue
-					RGB888[ImageDataPointer + 1] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 2) / 2.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));	// Green
-					RGB888[ImageDataPointer + 2] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 4) / 4.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));	// Red
-					ImageDataPointer += 3;
-					ColorNumber = (nonRGB888_ImageData[i] & 0xF0) >> 4;
+					int ColorNumber = (nonRGB888_ImageData[i / 2] & (0x0F << ((i % 2) * 4))) >> ((i % 2) * 4);
 					RGB888[ImageDataPointer] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 1) / 1.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));		// Blue
 					RGB888[ImageDataPointer + 1] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 2) / 2.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));	// Green
 					RGB888[ImageDataPointer + 2] = (byte)Math.Round((double)(255 * (2.0 / 3.0 * (ColorNumber & 4) / 4.0 + 1.0 / 3.0 * (ColorNumber & 8) / 8.0)));	// Red
@@ -257,6 +254,62 @@ namespace PIF_Viewer
                     ImageDataPointer += 3;
                 }
             }
+			return RGB888;
+		}
+
+		byte[] ConvertIndexedToRGB888(byte[] indexedImageData, UInt16 ImageType, byte[] ColorTableRGB888, UInt16 BitsPerPixel, UInt32 ImageSize)
+		{
+			byte[] RGB888 = new byte[ImageSize * 3];
+			UInt32 ImageDataPointer = 0;
+			for (int i = 0; i < RGB888.Length; i++)
+			{
+				RGB888[i] = 0;
+			}
+
+			if (BitsPerPixel > 4)
+			{
+				for (int i = 0; i < indexedImageData.Length; i++)
+				{
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedImageData[i] * 3];
+					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedImageData[i] * 3 + 1];
+					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedImageData[i] * 3 + 2];
+					ImageDataPointer += 3;
+				}
+			}
+			else if (BitsPerPixel >= 3)
+			{
+				for (int i = 0; i < ImageSize; i++)
+				{
+					int indexedCol = (indexedImageData[i / 2] & (0x0F << ((i % 2) * 4))) >> ((i % 2) * 4);
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
+					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
+					ImageDataPointer += 3;
+				}
+			}
+			else if (BitsPerPixel == 2)
+			{
+				for (int i = 0; i < ImageSize; i++)
+				{
+					int indexedCol = (indexedImageData[i / 4] & (3 << ((i % 4) * 2)) >> ((i % 4) * 2));
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
+					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
+					ImageDataPointer += 3;
+				}
+			}
+			else if (BitsPerPixel == 1)
+			{
+				for (int i = 0; i < ImageSize; i++)
+				{
+					int indexedCol = (indexedImageData[i / 8] & (1 << (i % 8)) >> (i % 8));
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
+					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
+					ImageDataPointer += 3;
+				}
+			}
+
 			return RGB888;
 		}
 
