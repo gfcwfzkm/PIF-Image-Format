@@ -19,7 +19,7 @@ I know, I know, there are way too many image standards and I'm sure there is a x
 Either the compression used on the image format (png/jpg) makes it slow to display the image, but it's at least fast to read due to the small size.
 Or the format looked like it was from the late 80s with various extensions bodged into it, resulting into large sizes and oddities to handle (image building from the bottom upwards, for example).
 
-With PIF I am trying to address both issues at once: A image format that is easy to implement and process on weak hardware, while offering smaller sizes. This is achived by a very basic image and file header that is easy to read, a simple RLE compression to reduce size as well as more color options for the pixel when less colors are required.
+With PIF I am trying to address both issues at once: A image format that is easy to implement and process on weak hardware, while offering smaller sizes. This is achived by a very basic image and file header that is easy to read, a simple RLE compression to reduce size as well as more color options for the pixel when less colors are required. (Plus it gives me a fun project and something to invest my freetime into.)
 
 ## Comparison
 If the File Format is compared against bitmap, one can see that the image size reduces heavily specially at lower color densities, which are not unlikely to encounter with many displays used at embedded systems.
@@ -45,6 +45,10 @@ The sizes could likely be further reduced and colors optimized when a indexed 16
 ( Required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) )
 ![Image of the Tool](test_images/tool_screenshot.png)
 A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
+### PIF Image Viewer
+( Required: .NET Framework or Mono )
+![Image of the Viewer](test_images/viewer_screenshot.png)
+A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmaps (.bmp) i needed.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter
@@ -52,10 +56,10 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Dithering Options
 	- [x] Saving as .PIF
 	- [x] Custom (Indexed) options
- - [ ] Image viewer
-	- [ ] Display the image
-	- [ ] Show details and stats
-	- [ ] Allow Export to other image formats
+ - [x] Image viewer
+	- [x] Display the image
+	- [x] Show details and stats
+	- [x] Allow Export to other image formats
  - [ ] Portable C Library Code & Examples
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
