@@ -22,9 +22,8 @@ Or the format looked like it was from the late 80s with various extensions bodge
 With PIF I am trying to address both issues at once: A image format that is easy to implement and process on weak hardware, while offering smaller sizes. This is achived by a very basic image and file header that is easy to read, a simple RLE compression to reduce size as well as more color options for the pixel when less colors are required. (Plus it gives me a fun project and something to invest my freetime into.)
 
 ## Comparison
-If the File Format is compared against bitmap, one can see that the image size reduces heavily specially at lower color densities, which are not unlikely to encounter with many displays used at embedded systems.
+If the File Format is compared against bitmap, one can see that the image size reduces heavily specially at lower color densities, which are not unlikely to encounter with many displays used at embedded systems. Specially with RLE compression enabled, the image format performs better on images without noise or too many changing colors. The following comparison table was done using the popular "Lenna" image, which can be seen as a worst-case scenario with it's noise.
 
-The Lenna test image was used, found in the test_images folder:
 | Image Type    | File Size (Bytes) | BPP | Compression |
 |---------------|-------------------|-----|-------------|
 | Bitmap (.BPP) | 786 486           | 24  | None        |
