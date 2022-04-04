@@ -48,7 +48,7 @@ A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .
 ### PIF Image Viewer
 ( Required: .NET Framework or Mono )
 ![Image of the Viewer](test_images/viewer_screenshot.png)
-A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmaps (.bmp) i needed.
+A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmap (.bmp) files.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter
