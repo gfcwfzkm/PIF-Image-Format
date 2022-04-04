@@ -36,9 +36,9 @@ If the File Format is compared against bitmap, one can see that the image size r
 | PIF RGB16C    | 131 100           | 4   | None        |
 | PIF RGB16C    | 67 280            | 4   | RLE         |
 | PIF B/W       | 32 796            | 1   | None        |
-| PIF B/W       | 14 144            | 1   | RLE        |
+| PIF B/W       | 13 295            | 1   | RLE        |
 
-The sizes could likely be further reduced and colors optimized when a indexed 16 color table would be used.
+All image files can be found in test_images\Lenna, together with some dithered and indexed examples.
 ## Tools
 ### PIF Image Converter
 ( Required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) )
