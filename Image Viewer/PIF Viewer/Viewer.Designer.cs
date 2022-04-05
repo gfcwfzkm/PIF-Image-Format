@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
 			this.components = new System.ComponentModel.Container();
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ViewerForm));
 			this.Status = new System.Windows.Forms.StatusStrip();
 			this.STATUS_FS_LBL = new System.Windows.Forms.ToolStripStatusLabel();
 			this.FileSize_LBL = new System.Windows.Forms.ToolStripStatusLabel();
@@ -266,6 +267,7 @@
 			this.Controls.Add(this.Status);
 			this.Controls.Add(this.ImageBox);
 			this.Controls.Add(this.Menu);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.MainMenuStrip = this.Menu;
 			this.MinimumSize = new System.Drawing.Size(768, 576);
 			this.Name = "ViewerForm";

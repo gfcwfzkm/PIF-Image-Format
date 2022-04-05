@@ -261,6 +261,7 @@ namespace PIF_Viewer
 		{
 			byte[] RGB888 = new byte[ImageSize * 3];
 			UInt32 ImageDataPointer = 0;
+            int indexedCol;
 			for (int i = 0; i < RGB888.Length; i++)
 			{
 				RGB888[i] = 0;
@@ -280,8 +281,9 @@ namespace PIF_Viewer
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-					int indexedCol = (indexedImageData[i / 2] & (0x0F << ((i % 2) * 4))) >> ((i % 2) * 4);
-					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+                    indexedCol = indexedImageData[i / 2] & 0x0F;
+                    indexedImageData[i / 2] >>= 4;
+                    RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
 					ImageDataPointer += 3;
@@ -291,8 +293,9 @@ namespace PIF_Viewer
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-					int indexedCol = (indexedImageData[i / 4] & (3 << ((i % 4) * 2)) >> ((i % 4) * 2));
-					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+                    indexedCol = indexedImageData[i / 4] & 0x03;
+                    indexedImageData[i / 4] >>= 2;
+                    RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
 					ImageDataPointer += 3;
@@ -302,7 +305,8 @@ namespace PIF_Viewer
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-					int indexedCol = (indexedImageData[i / 8] & (1 << (i % 8)) >> (i % 8));
+                    indexedCol = indexedImageData[i / 8] & 0x01;
+                    indexedImageData[i / 8] >>= 1;
 					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];

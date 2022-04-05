@@ -4,6 +4,7 @@
 # (Sorry if things don't look too professional, functionality first, optimizations later)
 
 import io
+import sys
 import threading
 from enum import Enum
 import PySimpleGUI as sg	# pip install pysimplegui
@@ -11,6 +12,15 @@ import PIL.Image			# pip install pillow
 import PIL.ImageColor
 
 THREADWAIT = 0.1
+APP_ICON = b'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'
+
+# https://github.com/PySimpleGUI/PySimpleGUI/issues/2722#issuecomment-852923088
+# Bit of code to make the taskbar display the icon properly
+if sys.platform.startswith('win'):
+    import ctypes
+    # Make sure Pyinstaller icons are still grouped
+    if sys.argv[0].endswith('.exe') == False:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'gfcwfzkm.PIF.PIFGUI.VersionStuff')
 
 # CGA / 16 Color palette generated with the following formula:
 # red   = 2/3×(colorNumber & 4)/4 + 1/3×(colorNumber & 8)/8 * 255
@@ -365,7 +375,7 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 							imageWord |= index << imageCnt
 							imageCnt += 2
 						elif (imageHeader[ImageH.BITSPERPIXEL.value] == 1):
-							imageWord |= index << imageCnt
+							imageWord = imageWord | (index << imageCnt)
 							imageCnt += 1
 						if (imageCnt >= 8):
 							imageData.append(imageWord)
@@ -593,7 +603,7 @@ def get_indexing(image, existingColLen, existingColType, existingColList):
 					key=f'F_{val}', expand_x=True)] for val in range(256)
 			],key='LCOL', expand_x=True, justification='c', scrollable=True, vertical_scroll_only=True)],
 	]
-	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(500, 600))
+	window = sg.Window('Indexing Options', layout, modal=True, finalize=True, size=(500, 600), icon=APP_ICON)
 	window['-PANE-'].expand(True, True, True)
 
 	IndexingValue = existingColLen
@@ -758,7 +768,7 @@ def file_saved(imageType, compression, size):
 		[sg.Column(leftCol),sg.Column(rightCol)],
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
-	window = sg.Window("Done!", layout, modal=True)
+	window = sg.Window("Done!", layout, modal=True, icon=APP_ICON)
 	while True:
 		event, values = window.read()
 		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
@@ -773,7 +783,7 @@ def about():
 		[sg.Text('PIF Converter programmed by Pascal G. (alias gfcwfzkm)', justification='center', expand_x=True)],
 		[sg.Button('OK', key='-BTN_OK-', expand_x=True)]
 	]
-	window = sg.Window("About", layout, modal=True)
+	window = sg.Window("About", layout, modal=True, icon=APP_ICON)
 	while True:
 		event, values = window.read()
 		if event == "-BTN_OK-" or event == sg.WIN_CLOSED:
@@ -835,7 +845,7 @@ def main():
 		]
 	]
 
-	window = sg.Window('PIF Image converter', layout, border_depth=0, resizable=True, finalize=True)
+	window = sg.Window('PIF Image converter', layout, border_depth=0, resizable=True, finalize=True, icon=APP_ICON)
 	window.bind('<Configure>', "WinEvent")
 	window.set_min_size((window.size[0], window.size[1]+30))
 	window['-PANE-'].expand(True, True, True)
