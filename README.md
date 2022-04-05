@@ -1,6 +1,6 @@
 # PIF - «Portable Image File» Format
 ## Overview
-The Portable Image Format (PIF) is a basic, bitmap-like image format with the focus on ease of use (implementation) and small size for embedded applications. The file format not only offers special, reduced color sets to reduce size where 24-bit resolution are not required (or unable to be rendered by the display), but also features variable sized color tables to achive good-looking, custom images at reduced bit-per-pixel size. To further reduce the size of the image data, a simple RLE-compression can be used without loosing too many cycles on decompression. Thanks to supporting various Bit-Per-Pixel formats, RGB565 and RGB332 can be directly written and don't need additional image data conversion.
+The Portable Image Format (PIF) is a basic, bitmap-like image format with the focus on ease of use (implementation) and small size for embedded applications. The file format not only offers special, reduced color sets to reduce size where 24-bit resolution are not required (or unable to be rendered by the display), but also features variable sized color tables to achive good-looking, custom images at reduced bit-per-pixel size. To further reduce the size of the image data, a simple RLE-compression can be used without loosing too many cycles on decompression. Thanks to supporting various Bit-Per-Pixel formats, RGB565 and RGB332 can be directly written to LCD displays who support it, and don't need additional image data conversion.
 
 ## Features
  - Various Bitformats supported:
@@ -48,6 +48,8 @@ A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .
 ( Required: .NET Framework or Mono )
 ![Image of the Viewer](test_images/viewer_screenshot.png)
 A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmap (.bmp) files.
+## C Library & Examples
+The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. The library can be further optimized by cutting off features or formats that are not needed, as well as only using .PIF images with the format, that can be directly send to the display.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter

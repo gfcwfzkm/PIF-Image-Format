@@ -11,13 +11,21 @@
 
 #include <inttypes.h>
 
+/* Select the RGB16 Color Table Format */
+//#define	PIF_RGB16C_RGB888
+#define PIF_RGB16C_RGB565
+//#define PIF_RGB16C_RGB332
+
 typedef enum {
 	PIF_RESULT_OK,
 	PIF_RESULT_IOERR,
 	PIF_RESULT_DRAWERR,
 	PIF_RESULT_FORMATERR
 }pifRESULT;
+
 /*
+// Todo: Configure the supported modes by the display, apply conversion
+// within the library to the display's right format
 typedef enum {
 	PIF_DISPLAY_MONO	= 0x01,
 	PIF_DISPLAY_RGB16C	= 0x02,
@@ -30,13 +38,13 @@ typedef enum {
 */
 typedef enum {
 	PIF_TYPE_RGB888 = 0,
-	PIF_TYPE_RGB565,
-	PIF_TYPE_RGB332,
-	PIF_TYPE_RGB16C,
-	PIF_TYPE_MONO,
-	PIF_TYPE_IND24,
-	PIF_TYPE_IND16,
-	PIF_TYPE_IND8
+	PIF_TYPE_RGB565 = 1,
+	PIF_TYPE_RGB332 = 2,
+	PIF_TYPE_RGB16C = 3,
+	PIF_TYPE_MONO = 4,
+	PIF_TYPE_IND8 = 5,
+	PIF_TYPE_IND16 = 6,
+	PIF_TYPE_IND24 = 7
 }pifImageType;
 
 typedef enum {
@@ -62,7 +70,7 @@ typedef struct {
 
 // Callbacks are expected to return 0. Non-zero return is treatet as an error!
 typedef int8_t (PIF_PREPARE_IMAGE)(void *p_Display, pifINFO_t* p_pifInfo);
-typedef int8_t (PIF_DRAW_PIXEL)(void *p_Display, pifINFO_t* p_pifInfo, uint32_t pixel);
+typedef void (PIF_DRAW_PIXEL)(void *p_Display, pifINFO_t* p_pifInfo, uint32_t pixel);
 typedef int8_t (PIF_FINISH_IMAGE)(void *p_Display, pifINFO_t* p_pifInfo);
 
 typedef struct {
@@ -77,15 +85,15 @@ typedef struct {
 // Callbacks are expected to return 0. Non-zero return is treatet as an error!
 typedef void* (PIF_OPEN_FILE)(const char* pc_filePath, int8_t *fileError);
 typedef int8_t (PIF_CLOSE_FILE)(void *p_fileHandle);
-typedef int8_t (PIF_READ_FILE)(void *p_fileHandle, uint8_t *p8_byte);
+typedef void (PIF_READ_FILE)(void *p_fileHandle, uint8_t *p8_buf, uint8_t length);
 typedef int8_t (PIF_SEEK_FILE)(void *p_fileHandle, uint32_t u32_filePos);
 
 typedef struct {
 	PIF_OPEN_FILE *open;
 	PIF_CLOSE_FILE *close;
 	PIF_READ_FILE *readByte;
-	PIF_SEEK_FILE *seekPos;
-	uint32_t filePos;			// File position pointer / index
+	PIF_SEEK_FILE *seekPos;		// relevant for indexed image with no/small color table buffers.
+	uint32_t filePos;			// File index, starting from the image data position (true index = filePos + imageOffset)
 	void *fileHandle;			// File Handler
 }pifIO_t;
 
