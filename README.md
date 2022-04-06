@@ -65,7 +65,7 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Display the image
 	- [x] Show details and stats
 	- [x] Allow Export to other image formats
- - [~] Portable C Library Code & Examples
+ - [x] Portable C Library Code & Examples
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
 		- [ ] ATxmega
