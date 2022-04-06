@@ -90,7 +90,6 @@ const _PMEMX uint8_t color_table_16C[16] = {
 	#error "You need to configure which color-format you want to use for the RGB16C image mode!"
 #endif
 
-
 #define PIF_MONOCHROME_BLACK	0x000000
 #define PIF_MONOCHROME_WHITE	0xFFFFFF
 
@@ -105,6 +104,8 @@ const _PMEMX uint8_t color_table_16C[16] = {
 #define PIF_FORMAT_IND8		0x4942
 #define PIF_FORMAT_COMPR	0x7DDE
 #define PIF_FORMAT_COLORTABLE_OFFSET	0x1C
+#define PIF_MASK_INDEXED_COLOR_SIZE		0x03
+#define PIF_MASK_INDEXED_MODE_IN_USE	0x04
 
 uint8_t _read8(pifIO_t *p_io)
 {
@@ -124,7 +125,7 @@ uint16_t _read16(pifIO_t *p_io)
 	return (uint16_t)data8[1] << 8 | data8[0];
 }
 
-// __uint24 is supported on some plattforms but not on all of them, so treat it as u32
+// __uint24 is supported only on some plattforms but not on all of them, so treat it as u32
 uint32_t _read24(pifIO_t *p_io)
 {
 	uint8_t data8[3];
@@ -156,166 +157,81 @@ inline uint32_t _getRGB16C(uint8_t color)
 #endif
 }
 
-inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif)
+inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif, uint8_t *seekUsed)
 {
-	uint8_t mult = p_pif->pifInfo.imageType & 0x3;
+	uint8_t mult = p_pif->pifInfo.imageType & PIF_MASK_INDEXED_COLOR_SIZE;
 	uint32_t pixelColor;
 	
-	p_pif->pifFileHandler->seekPos(p_pif->pifFileHandler->fileHandle, PIF_FORMAT_COLORTABLE_OFFSET + (mult * color));
-	
-	if (p_pif->pifInfo.imageType == PIF_TYPE_IND8)
+	// If any colors have been loaded, use the buffered color table, otherwise seek back and forth (slow operation!)
+	if (((color+1) * mult) <= p_pif->pifDecoder->colTableBufLen)
 	{
-		pixelColor = _read8(p_pif->pifFileHandler);
-	}
-	else if (p_pif->pifInfo.imageType == PIF_TYPE_IND16)
-	{
-		pixelColor = _read16(p_pif->pifFileHandler);
+		pixelColor = p_pif->pifDecoder->colTableBuf[mult * color];
+		if (mult > 1)	pixelColor |= (uint32_t)p_pif->pifDecoder->colTableBuf[mult * color + 1] << 8;
+		if (mult > 2)	pixelColor |= (uint32_t)p_pif->pifDecoder->colTableBuf[mult * color + 2] << 16;
 	}
 	else
 	{
-		pixelColor = _read24(p_pif->pifFileHandler);
+		*seekUsed = 1;
+		p_pif->pifFileHandler->seekPos(p_pif->pifFileHandler->fileHandle, PIF_FORMAT_COLORTABLE_OFFSET + (mult * color));
+		if (p_pif->pifInfo.imageType == PIF_TYPE_IND8)
+		{
+			pixelColor = _read8(p_pif->pifFileHandler);
+		}
+		else if (p_pif->pifInfo.imageType == PIF_TYPE_IND16)
+		{
+			pixelColor = _read16(p_pif->pifFileHandler);
+		}
+		else
+		{
+			pixelColor = _read24(p_pif->pifFileHandler);
+		}
 	}
 	
 	return pixelColor;
 }
 
-void _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
+uint8_t _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
 {
 	uint8_t seek_used = 0;
 	uint8_t pixelCounter = 0;
-	switch (p_pif->pifInfo.imageType)
+	uint8_t const bitsPerPixel = (p_pif->pifInfo.bitsPerPixel == 3) ? 4 : p_pif->pifInfo.bitsPerPixel;
+	uint8_t const pixelLimit = 8 / bitsPerPixel;
+	uint8_t const pixelMask = (1 << p_pif->pifInfo.bitsPerPixel) - 1;
+	
+	for (;pixelCounter < pixelLimit; pixelCounter++)
 	{
-		case PIF_TYPE_MONO:
-			for (;pixelCounter < 8; pixelCounter++)
-			{
-				
-				if (pixelGroup & 1)
-				{
-					p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), PIF_MONOCHROME_WHITE);
-				}
-				else
-				{
-					p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), PIF_MONOCHROME_BLACK);
-				}
-				pixelGroup >>= 1;
-				
-				if (pixelCounter >= 1)
-				{
-					p_pif->pifInfo.currentX++;
-					if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-					{
-						p_pif->pifInfo.currentX = 0;
-						p_pif->pifInfo.currentY++;
-						if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
-						{
-							break;
-						}
-					}
-				}
-			}
-			break;
-		case PIF_TYPE_RGB16C:
-			for (;pixelCounter < 2; pixelCounter++)
-			{
+		switch (p_pif->pifInfo.imageType)
+		{
+			case PIF_TYPE_RGB16C:
 				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), _getRGB16C(pixelGroup & 0x0F));
-				pixelGroup >>= 4;
-				
-				if (pixelCounter >= 1)
+				break;
+			case PIF_TYPE_MONO:
+				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (pixelGroup & 1) ? _getRGB16C(15) : _getRGB16C(0));
+				break;
+			default:
+				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (p_pif->pifDecoder->bypassColTable==PIF_INDEXED_NORMAL_OPERATION) ? _getIndexedColor(pixelGroup & pixelMask, p_pif, &seek_used) : pixelGroup & pixelMask);
+		}
+		
+		pixelGroup >>= bitsPerPixel;
+		
+		if (pixelCounter >= 1)
+		{
+			p_pif->pifInfo.currentX++;
+			if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
+		{
+				p_pif->pifInfo.currentX = 0;
+				p_pif->pifInfo.currentY++;
+				if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
 				{
-					p_pif->pifInfo.currentX++;
-					if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-					{
-						p_pif->pifInfo.currentX = 0;
-						p_pif->pifInfo.currentY++;
-						if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
-						{
-							break;
-						}
-					}
+					break;
 				}
 			}
-			break;
-		default:
-			if (p_pif->pifInfo.bitsPerPixel > 4)
-			{
-				
-			}
-			else if (p_pif->pifInfo.bitsPerPixel >= 3)
-			{
-				for (;pixelCounter < 2; pixelCounter++)
-				{
-					
-					pixelGroup >>= 4;
-					
-					if (pixelCounter >= 1)
-					{
-						p_pif->pifInfo.currentX++;
-						if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-						{
-							p_pif->pifInfo.currentX = 0;
-							p_pif->pifInfo.currentY++;
-							if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
-							{
-								break;
-							}
-						}
-					}
-				}
-			}
-			else if (p_pif->pifInfo.bitsPerPixel > 1)
-			{
-				for (;pixelCounter < 4; pixelCounter++)
-				{
-					
-					pixelGroup >>= 2;
-					
-					if (pixelCounter >= 1)
-					{
-						p_pif->pifInfo.currentX++;
-						if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-						{
-							p_pif->pifInfo.currentX = 0;
-							p_pif->pifInfo.currentY++;
-							if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
-							{
-								break;
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				for (;pixelCounter < 8; pixelCounter++)
-				{
-										
-					
-					pixelGroup >>= 1;
-					
-					if (pixelCounter >= 1)
-					{
-						p_pif->pifInfo.currentX++;
-						if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-						{
-							p_pif->pifInfo.currentX = 0;
-							p_pif->pifInfo.currentY++;
-							if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
-							{
-								break;
-							}
-						}
-					}
-				}
-			}
+		}
 	}
-	if (seek_used)
-	{
-		// File Pointer has been moved! Restore it to the right position
-		p_pif->pifFileHandler->seekPos(p_pif->pifFileHandler->fileHandle, p_pif->pifFileHandler->filePos + p_pif->pifInfo.imageOffset);
-	}
+	return seek_used;
 }
 
-void pif_createDecoder(pifDEC_t *p_decoder, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength)
+pifRESULT pif_createDecoder(pifDEC_t *p_decoder, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength)
 {
 	p_decoder->prepare = f_optional_prepare;
 	p_decoder->draw = f_draw;
@@ -323,15 +239,23 @@ void pif_createDecoder(pifDEC_t *p_decoder, PIF_PREPARE_IMAGE *f_optional_prepar
 	p_decoder->displayHandle = p_displayHandler;
 	p_decoder->colTableBuf = p8_opt_ColTableBuf;
 	p_decoder->colTableBufLen = u16_colTableBufLength;
+	return (f_draw == NULL) ? PIF_RESULT_DRAWERR : PIF_RESULT_OK;
 }
 
-void pif_createIO(pifIO_t *p_fileIO, PIF_OPEN_FILE *f_openFile, PIF_CLOSE_FILE *f_closeFile, PIF_READ_FILE *f_readFile, PIF_SEEK_FILE *f_seekFile, void *p_fileHandler)
+pifRESULT pif_createIO(pifIO_t *p_fileIO, PIF_OPEN_FILE *f_openFile, PIF_CLOSE_FILE *f_closeFile, PIF_READ_FILE *f_readFile, PIF_SEEK_FILE *f_seekFile)
 {
 	p_fileIO->open = f_openFile;
 	p_fileIO->close = f_closeFile;
 	p_fileIO->readByte = f_readFile;
 	p_fileIO->seekPos = f_seekFile;
-	p_fileIO->fileHandle = p_fileHandler;
+	if ((f_openFile == 0) || (f_closeFile == NULL) || (f_readFile == NULL) || (f_seekFile == NULL))
+	{
+		return PIF_RESULT_IOERR;
+	}
+	else
+	{
+		return PIF_RESULT_OK;
+	}
 }
 
 void pif_createPIFHandle(pifHANDLE_t *p_PIF, pifIO_t *p_fileIO, pifDEC_t *p_decoder)
@@ -348,9 +272,9 @@ pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path)
 	
 	// Open file and check for errors. If there is an error, cancel operation!
 	p_PIF->pifFileHandler->fileHandle = p_PIF->pifFileHandler->open(pc_path, &results);
-	if (results != 0)
+	if ((results != 0) || (p_PIF->pifFileHandler->readByte == NULL))
 	{
-		p_PIF->pifFileHandler->close(p_PIF->pifFileHandler->fileHandle);
+		if (p_PIF->pifFileHandler->close != NULL)	p_PIF->pifFileHandler->close(p_PIF->pifFileHandler->fileHandle);
 		return PIF_RESULT_IOERR;
 	}
 	
@@ -424,7 +348,7 @@ pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path)
 	
 	if (results)
 	{
-		p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle));
+		if (p_PIF->pifFileHandler->close != NULL) p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle));
 		return PIF_RESULT_FORMATERR;
 	}
 	return PIF_RESULT_OK;
@@ -432,18 +356,19 @@ pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path)
 
 pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 {
-	int8_t results = 0;
 	int8_t rleInstr = 0;
 	uint32_t pixelData;
+	uint8_t seekModified = 0;
 	
+	const uint8_t ColorTablePixelSize = p_PIF->pifInfo.imageType & PIF_MASK_INDEXED_COLOR_SIZE;
 	const uint8_t filePosInc = (p_PIF->pifInfo.bitsPerPixel < 8) ? 1 : p_PIF->pifInfo.bitsPerPixel >> 3; // Division by 8
 	
 	p_PIF->pifFileHandler->filePos = 0;
 	p_PIF->pifInfo.startX = x0;
 	p_PIF->pifInfo.startY = y0;
 	
-	// If function pointer != zero, call it
-	if (p_PIF->pifDecoder->prepare != 0)
+	// If function pointer != null, call it with the image details
+	if (p_PIF->pifDecoder->prepare != NULL)
 	{
 		if (p_PIF->pifDecoder->prepare(p_PIF->pifDecoder->displayHandle, &(p_PIF->pifInfo)))
 		{
@@ -451,18 +376,34 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 		}
 	}
 	
-	if (p_PIF->pifDecoder->colTableBufLen > 0 && p_PIF->pifInfo.imageType >= PIF_TYPE_IND24)
-	{
-		// Buffer some colors from the color table
-		// Allow partial buffering by only buffer the first x colors that the array can fit in
+	// Usually 0x1C is the image data offset address, unless a color table is in use
+	if ((p_PIF->pifInfo.imageType & PIF_MASK_INDEXED_MODE_IN_USE) && (p_PIF->pifDecoder->bypassColTable == PIF_INDEXED_NORMAL_OPERATION))
+	{		
+		// Buffer some colors from the color table, if there is any buffer available
+		if (p_PIF->pifDecoder->colTableBuf != NULL && p_PIF->pifDecoder->colTableBufLen >= ColorTablePixelSize)
+		{
+			// Allow partial buffering by only buffer the first x colors that the array can fit in
+			// Only buffer whole colors (RGB332, RGB565 or RGB888), not partially (clipping RGB888 into a 2-Byte buffer, for example)
+			for (uint8_t colorCounter = 0; (colorCounter + ColorTablePixelSize - 1) < p_PIF->pifDecoder->colTableBufLen; colorCounter++)
+			{
+				if (colorCounter >= (p_PIF->pifInfo.colTableSize * ColorTablePixelSize))
+				{
+					// No more colors to read from the color table
+					break;
+				}
+				p_PIF->pifDecoder->colTableBuf[colorCounter] = _read8(p_PIF->pifFileHandler);
+			}
+		}
 	}
+	// Seek to the right position for the image data
+	p_PIF->pifFileHandler->seekPos(p_PIF->pifFileHandler->fileHandle, p_PIF->pifInfo.imageOffset);
 	
 	// Check if data is RLE-compressed
 	if (p_PIF->pifInfo.compression == PIF_COMPRESSION_RLE)
 	{
-		for (; p_PIF->pifFileHandler->filePos < p_PIF->pifInfo.imageSize; p_PIF->pifFileHandler->filePos += filePosInc)
+		for (; p_PIF->pifFileHandler->filePos < p_PIF->pifInfo.imageSize; p_PIF->pifFileHandler->filePos++)
 		{
-			// Load the next byte
+			// Load the next byte			
 			pixelData = _read8(p_PIF->pifFileHandler);
 			
 			// Check the RLE Instruction
@@ -473,10 +414,12 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 				if (p_PIF->pifInfo.bitsPerPixel > 16)
 				{
 					pixelData |= (uint32_t)_read16(p_PIF->pifFileHandler) << 8;
+					p_PIF->pifFileHandler->filePos += 2;
 				}
 				else if (p_PIF->pifInfo.bitsPerPixel > 8)
 				{
 					pixelData |= (uint32_t)_read8(p_PIF->pifFileHandler) << 8;
+					p_PIF->pifFileHandler->filePos++;
 				}
 				
 				for (; rleInstr > 0; rleInstr--)
@@ -490,7 +433,7 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 					else
 					{
 						// indexed image
-						_processIndexed(p_PIF, pixelData);
+						seekModified = _processIndexed(p_PIF, pixelData);
 					}
 					// Increase Pixel Position counter
 					p_PIF->pifInfo.currentX++;
@@ -508,10 +451,12 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 				if (p_PIF->pifInfo.bitsPerPixel > 16)
 				{
 					pixelData |= (uint32_t)_read16(p_PIF->pifFileHandler) << 8;
+					p_PIF->pifFileHandler->filePos += 2;
 				}
 				else if (p_PIF->pifInfo.bitsPerPixel > 8)
 				{
 					pixelData |= (uint32_t)_read8(p_PIF->pifFileHandler) << 8;
+					p_PIF->pifFileHandler->filePos++;
 				}
 				if (p_PIF->pifInfo.imageType <= PIF_TYPE_RGB332)
 				{
@@ -521,7 +466,7 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 				else
 				{
 					// indexed image
-					_processIndexed(p_PIF, pixelData);
+					seekModified = _processIndexed(p_PIF, pixelData);
 				}
 				// Increase Pixel Position counter
 				p_PIF->pifInfo.currentX++;
@@ -536,6 +481,12 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 			{
 				// RLE Instruction is zero / empty - load the next RLE instruction
 				rleInstr = (int8_t)pixelData;
+			}
+			
+			if (seekModified)
+			{
+				// If the file position has been modified by the indexed-image function, restore the index
+				p_PIF->pifFileHandler->seekPos(p_PIF->pifFileHandler->fileHandle, p_PIF->pifFileHandler->filePos + p_PIF->pifInfo.imageOffset + 1);
 			}
 		}
 	}
@@ -575,15 +526,10 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 	}
 	
 	// If function pointer != zero, call it
-	if (p_PIF->pifDecoder->finish != 0)
+	if (p_PIF->pifDecoder->finish != NULL)
 	{
-		results |= p_PIF->pifDecoder->finish(p_PIF->pifDecoder->displayHandle, &(p_PIF->pifInfo));
+		if (p_PIF->pifDecoder->finish(p_PIF->pifDecoder->displayHandle, &(p_PIF->pifInfo)))	return PIF_RESULT_DRAWERR;
 	}
-	
-	if (results)
-	{
-		return PIF_RESULT_DRAWERR;
-	}	
 	return PIF_RESULT_OK;
 }
 
@@ -595,7 +541,10 @@ pifRESULT pif_getInfo(pifHANDLE_t *p_PIF, pifINFO_t *p_Info)
 
 pifRESULT pif_close(pifHANDLE_t *p_PIF)
 {
-	if (p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle)))	return PIF_RESULT_IOERR;
+	if (p_PIF->pifFileHandler->close != NULL)
+	{
+		if (p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle)))	return PIF_RESULT_IOERR;
+	}
 	return PIF_RESULT_OK;
 }
 

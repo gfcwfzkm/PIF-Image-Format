@@ -49,7 +49,11 @@ A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .
 ![Image of the Viewer](test_images/viewer_screenshot.png)
 A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmap (.bmp) files.
 ## C Library & Examples
-The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. The library can be further optimized by cutting off features or formats that are not needed, as well as only using .PIF images with the format, that can be directly send to the display.
+The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. For indexed images, a indexed-colors-buffer is not required but recommended to speed up the operation. Otherwise the library will seek back and forth between the image data and the color table. Even a partial buffer is supported, to speed up the uses of commonly used colors from the table.
+
+To use the library, the file I/O functions as well has drawing functions have to be passed to the library. Using he file I/O functions, pretty much any kind of storage system can be used, including the internal flash memory if a basic read function is coded for it.
+
+In order to support even certain grayscale or e-ink displays, the library can ignore the color lookup table and directly send the raw value to the display driver, allowing to use the indexed lookup table as a way to implement custom formats suited for the specific display.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter
@@ -61,9 +65,9 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Display the image
 	- [x] Show details and stats
 	- [x] Allow Export to other image formats
- - [ ] Portable C Library Code & Examples
+ - [~] Portable C Library Code & Examples
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
 		- [ ] ATxmega
 		- [ ] GD32VF103 (RISC-V)
-	- [ ] Universal / Portable C Library
+	- [x] Universal / Portable C Library

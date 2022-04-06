@@ -202,10 +202,10 @@ namespace PIF_Viewer
 		{
 			byte[] RGB888 = new byte[imageSize * 3];
 
-            for (int i = 0; i < RGB888.Length; i++)
-            {
-                RGB888[i] = 0;
-            }
+			for (int i = 0; i < RGB888.Length; i++)
+			{
+				RGB888[i] = 0;
+			}
 
 			UInt32 ImageDataPointer = 0;
 
@@ -240,20 +240,20 @@ namespace PIF_Viewer
 					ImageDataPointer += 3;
 				}
 			}
-            else if (ImageType == PIFFormat.ImageTypeBLWH)
-            {
-                for (int i = 0; i < imageSize; i++)
-                {
-                    int val = (nonRGB888_ImageData[i / 8] & (1<< (i % 8)));
-                    if (val != 0)
-                    {
-                        RGB888[ImageDataPointer] = 0xFF;
-                        RGB888[ImageDataPointer + 1] = 0xFF;
-                        RGB888[ImageDataPointer + 2] = 0xFF;
-                    }
-                    ImageDataPointer += 3;
-                }
-            }
+			else if (ImageType == PIFFormat.ImageTypeBLWH)
+			{
+				for (int i = 0; i < imageSize; i++)
+				{
+					int val = (nonRGB888_ImageData[i / 8] & (1<< (i % 8)));
+					if (val != 0)
+					{
+						RGB888[ImageDataPointer] = 0xFF;
+						RGB888[ImageDataPointer + 1] = 0xFF;
+						RGB888[ImageDataPointer + 2] = 0xFF;
+					}
+					ImageDataPointer += 3;
+				}
+			}
 			return RGB888;
 		}
 
@@ -261,7 +261,8 @@ namespace PIF_Viewer
 		{
 			byte[] RGB888 = new byte[ImageSize * 3];
 			UInt32 ImageDataPointer = 0;
-            int indexedCol;
+			if (BitsPerPixel == 3)	BitsPerPixel = 4;
+			int indexedCol;
 			for (int i = 0; i < RGB888.Length; i++)
 			{
 				RGB888[i] = 0;
@@ -277,13 +278,13 @@ namespace PIF_Viewer
 					ImageDataPointer += 3;
 				}
 			}
-			else if (BitsPerPixel >= 3)
+			else if (BitsPerPixel == 4)
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-                    indexedCol = indexedImageData[i / 2] & 0x0F;
-                    indexedImageData[i / 2] >>= 4;
-                    RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+					indexedCol = indexedImageData[i / 2] & ((1 << BitsPerPixel) - 1);
+					indexedImageData[i / (8 / BitsPerPixel)] >>= BitsPerPixel;
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
 					ImageDataPointer += 3;
@@ -293,9 +294,9 @@ namespace PIF_Viewer
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-                    indexedCol = indexedImageData[i / 4] & 0x03;
-                    indexedImageData[i / 4] >>= 2;
-                    RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
+					indexedCol = indexedImageData[i / 4] & ((1 << BitsPerPixel) - 1);
+					indexedImageData[i / (8 / BitsPerPixel)] >>= BitsPerPixel;
+					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
 					ImageDataPointer += 3;
@@ -305,8 +306,8 @@ namespace PIF_Viewer
 			{
 				for (int i = 0; i < ImageSize; i++)
 				{
-                    indexedCol = indexedImageData[i / 8] & 0x01;
-                    indexedImageData[i / 8] >>= 1;
+					indexedCol = indexedImageData[i / 8] & ((1 << BitsPerPixel) - 1);
+					indexedImageData[i / (8 / BitsPerPixel)] >>= BitsPerPixel;
 					RGB888[ImageDataPointer] = ColorTableRGB888[indexedCol * 3];
 					RGB888[ImageDataPointer + 1] = ColorTableRGB888[indexedCol * 3 + 1];
 					RGB888[ImageDataPointer + 2] = ColorTableRGB888[indexedCol * 3 + 2];
@@ -333,15 +334,15 @@ namespace PIF_Viewer
 			{
 				uncompressedData = new byte[finalImageResolution * 2];
 			}
-            else if (BitsPerPixel == 8)
-            {
-                uncompressedData = new byte[finalImageResolution];
-            }
-            else if (BitsPerPixel == 4)
-            {
-                uncompressedData = new byte[finalImageResolution / 2];
-            }
-            
+			else if (BitsPerPixel == 8)
+			{
+				uncompressedData = new byte[finalImageResolution];
+			}
+			else if (BitsPerPixel == 4)
+			{
+				uncompressedData = new byte[finalImageResolution / 2];
+			}
+			
 
 			for (UInt32 i = 0; i < uncompressedData.Length; i++)
 			{
