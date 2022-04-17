@@ -3,6 +3,10 @@
 The Portable Image Format (PIF) is a basic, bitmap-like image format with the focus on ease of use (implementation) and small size for embedded applications. The file format not only offers special, reduced color sets to reduce size where 24-bit resolution are not required (or unable to be rendered by the display), but also features variable sized color tables to achive good-looking, custom images at reduced bit-per-pixel size. To further reduce the size of the image data, a simple RLE-compression can be used without loosing too many cycles on decompression. Thanks to supporting various Bit-Per-Pixel formats, RGB565 and RGB332 can be directly written to LCD displays who support it, and don't need additional image data conversion.
 
 ## Features
+ - **Runs on any Microcontroller (or better) with at least 60 bytes of free RAM** (checked on ATmega328p)
+ - Easy implementation via callback functions, allowing flash-memory or files as source
+ - No external depencies or use of malloc/free
+ - Fast execution and low memory profile
  - Various Bitformats supported:
    - RGB888 - Uncompressed RGB Image
    - RGB565 - 16bit per Pixel Image, reduced colorset
@@ -11,7 +15,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
    - B/W - 1bit per Pixel Image, only Black and White
    - Indexed - Custom Pixel bitwidth, using a RGB332, RGB565 or RGB888 color table
  - Basic Compression (RLE)
- - Ease of use and implementation
+ - Allows to draw on any kind of display, including exotic ones like grayscale or e-ink displays
 
 ## Why another Image Format?
 I know, I know, there are way too many image standards and I'm sure there is a xkcd comic panel about it already. On the one side this project is an excuse for me to take a deeper look into python and figure this programming language out, on the otherside I have gotten frustrated with the options when one wants to load images on a display from a microcontroller. I've encountered always the same problems there:
@@ -49,7 +53,11 @@ A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .
 ![Image of the Viewer](test_images/viewer_screenshot.png)
 A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmap (.bmp) files.
 ## C Library & Examples
-The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. The library can be further optimized by cutting off features or formats that are not needed, as well as only using .PIF images with the format, that can be directly send to the display.
+The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. For indexed images, a indexed-colors-buffer is not required but recommended to speed up the operation. Otherwise the library will seek back and forth between the image data and the color table. Even a partial buffer is supported, to speed up the uses of commonly used colors from the table.
+
+To use the library, the file I/O functions as well has drawing functions have to be passed to the library. Using he file I/O functions, pretty much any kind of storage system can be used, including the internal flash memory if a basic read function is coded for it.
+
+In order to support even certain grayscale or e-ink displays, the library can ignore the color lookup table and directly send the raw value to the display driver, allowing to use the indexed lookup table as a way to implement custom formats suited for the specific display.
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter
@@ -61,9 +69,9 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Display the image
 	- [x] Show details and stats
 	- [x] Allow Export to other image formats
- - [ ] Portable C Library Code & Examples
+ - [x] Portable C Library Code & Examples
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
 		- [ ] ATxmega
 		- [ ] GD32VF103 (RISC-V)
-	- [ ] Universal / Portable C Library
+	- [x] Universal / Portable C Library
