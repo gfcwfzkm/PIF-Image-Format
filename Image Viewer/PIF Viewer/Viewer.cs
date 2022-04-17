@@ -419,10 +419,15 @@ namespace PIF_Viewer
 			number = (UInt32)(fileBytes[0 + offset] | fileBytes[1 + offset] << 8 | fileBytes[2 + offset] << 16 | fileBytes[3 + offset] << 24);
 
 			return number;
-		}	
-	}
+		}
 
-	public class SpecialPictureBox : PictureBox
+        private void ColorTable_LBL_Click(object sender, EventArgs e)
+        {
+
+        }
+    }
+
+    public class SpecialPictureBox : PictureBox
 	{
 		protected override void OnPaint(PaintEventArgs pe)
 		{

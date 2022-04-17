@@ -3,6 +3,7 @@
 # Might require python 3.10 or higher
 # (Sorry if things don't look too professional, functionality first, optimizations later)
 
+import os
 import io
 import sys
 import threading
@@ -319,8 +320,6 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 	TemporaryImage = image.copy()
 
 	#Write the image header with the information we already have
-	imageHeader[ImageH.IMAGEWIDTH.value] = TemporaryImage.width
-	imageHeader[ImageH.IMAGEHEIGHT.value] = TemporaryImage.height
 	if (compression):
 		imageHeader[ImageH.COMPRTYPE.value] = 0x7DDE
 
@@ -332,6 +331,9 @@ def convertToPIF(image, resize, conversion, colorLength, colorTable, dithering, 
 	if ((checkImageType == ConversionType.INDEXED332) or (checkImageType == ConversionType.INDEXED565) or (checkImageType == ConversionType.INDEXED888)):
 		checkImageType = ConversionType.INDEXED332
 
+	imageHeader[ImageH.IMAGEWIDTH.value] = TemporaryImage.width
+	imageHeader[ImageH.IMAGEHEIGHT.value] = TemporaryImage.height
+	
 	match checkImageType:
 		case ConversionType.INDEXED332:
 			# Write the Image Type and Bits per Pixel into the imageHeader
@@ -559,9 +561,24 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	tTotalPIF[11] = (iStart & 0xFF000000) >> 24
 
 	# write to file
-	PIFFile = open(path, "wb")
-	PIFFile.write(bytes(tTotalPIF))
-	PIFFile.close()
+	fileInfo = os.path.basename(path).rpartition('.')
+
+	# Save either as .PIF or as .H header file
+	if (fileInfo[2] == "pif"):
+		PIFFile = open(path, "wb")
+		PIFFile.write(bytes(tTotalPIF))
+		PIFFile.close()
+	elif (fileInfo[2] == "h"):
+		PIFFile = open(path, "wt")
+		PIFFile.write(f'#ifndef PIF_H_{fileInfo[0]}\n#define PIF_H_{fileInfo[0]}\n\n#include <inttypes.h>\n\n// https://github.com/gfcwfzkm/PIF-Image-Format\n\n')
+		PIFFile.write(f'#ifdef AVR\n\t#include <avr/pgmspace.h>\n\t#define _P_MEMX __memx\n#else\n\t#define _P_MEMX\n#endif\n\n')
+		PIFFile.write(f'const _P_MEMX uint8_t {fileInfo[0]}[{iSize}] = {{')
+		for index in range(len(tTotalPIF)):
+			if (index % 16 == 0):	PIFFile.write('\n\t')
+			PIFFile.write(f'0x{tTotalPIF[index]:02X}, ')
+		PIFFile.write(f'\n}};\n\n#endif // PIF_H_{fileInfo[0]}\n')
+		PIFFile.close()
+
 
 	return iSize
 
@@ -910,7 +927,7 @@ def main():
 		# Convert & save the PIF file
 		if ((events == 'Save') or (events == '-BTN_SAVE-')):
 			if (ImageToDisplay == None): continue
-			filename = sg.popup_get_file('Save PIF Image','Save PIF Image', save_as=True, default_extension='Test123', no_window=True, show_hidden=False, file_types=(("PIF Image", "*.pif"),))
+			filename = sg.popup_get_file('Save PIF Image','Save PIF Image', save_as=True, default_extension='Test123', no_window=True, show_hidden=False, file_types=(("PIF Image File", "*.pif"),("PIF C Header File", "*.h"),))
 			if (filename):
 				print(filename)
 				conType = ConversionType.UNDEFINED
