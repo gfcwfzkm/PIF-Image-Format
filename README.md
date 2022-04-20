@@ -108,7 +108,7 @@ if (res != PIF_RESULT_OK)
 
 In order to support even certain grayscale or e-ink displays, the library can ignore the color lookup table and directly send the raw value to the display driver, allowing to use the indexed lookup table as a way to implement custom formats suited for the specific display.
 
-[Check the examples to see possible implementations and capabilities](/C%20Library/examples/README.md)
+## [Check the examples to see possible implementations and capabilities](/C%20Library/examples/README.md)
 
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
