@@ -1,0 +1,15 @@
+{
+	"files.associations": {
+		"usbd_transc.h": "c",
+		"usbd_core.h": "c",
+		"drv_usb_core.h": "c",
+		"drv_usb_regs.h": "c",
+		"usb_ch9_std.h": "c",
+		"cdc_acm_core.h": "c",
+		"drv_usbd_int.h": "c",
+		"drv_usb_hw.h": "c",
+		"usbd_enum.h": "c",
+		"wchar.h": "c",
+		"_default_types.h": "c"
+	}
+}
