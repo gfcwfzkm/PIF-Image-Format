@@ -26,9 +26,9 @@
 
 
 // CGA / 16 Color palette generated with the following formula:
-// red	 = 2/3×(colorNumber & 4)/4 + 1/3×(colorNumber & 8)/8 * 255
-// green = 2/3×(colorNumber & 2)/2 + 1/3×(colorNumber & 8)/8 * 255
-// blue	 = 2/3×(colorNumber & 1)/1 + 1/3×(colorNumber & 8)/8 * 255
+// red	 = 2/3ï¿½(colorNumber & 4)/4 + 1/3ï¿½(colorNumber & 8)/8 * 255
+// green = 2/3ï¿½(colorNumber & 2)/2 + 1/3ï¿½(colorNumber & 8)/8 * 255
+// blue	 = 2/3ï¿½(colorNumber & 1)/1 + 1/3ï¿½(colorNumber & 8)/8 * 255
 #if defined(PIF_RGB16C_RGB888)
 const _PMEMX uint8_t color_table_16C[48] = {
 	0, 0, 0,		// black
@@ -231,14 +231,14 @@ uint8_t _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
 	return seek_used;
 }
 
-pifRESULT pif_createDecoder(pifDEC_t *p_decoder, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength)
+pifRESULT pif_createPainter(pifPAINT_t *p_painter, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength)
 {
-	p_decoder->prepare = f_optional_prepare;
-	p_decoder->draw = f_draw;
-	p_decoder->finish = f_optional_finish;
-	p_decoder->displayHandle = p_displayHandler;
-	p_decoder->colTableBuf = p8_opt_ColTableBuf;
-	p_decoder->colTableBufLen = u16_colTableBufLength;
+	p_painter->prepare = f_optional_prepare;
+	p_painter->draw = f_draw;
+	p_painter->finish = f_optional_finish;
+	p_painter->displayHandle = p_displayHandler;
+	p_painter->colTableBuf = p8_opt_ColTableBuf;
+	p_painter->colTableBufLen = u16_colTableBufLength;
 	return (f_draw == NULL) ? PIF_RESULT_DRAWERR : PIF_RESULT_OK;
 }
 
@@ -258,9 +258,9 @@ pifRESULT pif_createIO(pifIO_t *p_fileIO, PIF_OPEN_FILE *f_openFile, PIF_CLOSE_F
 	}
 }
 
-void pif_createPIFHandle(pifHANDLE_t *p_PIF, pifIO_t *p_fileIO, pifDEC_t *p_decoder)
+void pif_createPIFHandle(pifHANDLE_t *p_PIF, pifIO_t *p_fileIO, pifPAINT_t *p_painter)
 {
-	p_PIF->pifDecoder = p_decoder;
+	p_PIF->pifDecoder = p_painter;
 	p_PIF->pifFileHandler = p_fileIO;
 }
 

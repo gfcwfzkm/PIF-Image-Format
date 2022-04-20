@@ -92,7 +92,7 @@ typedef struct {
 	pifIndexedBypass bypassColTable;	// Bypass the lookup of indexed colors, handy for displays supporting very specific formats (like 7-colors e-ink displays)
 	uint8_t *colTableBuf;		// Optional array to buffer the color table
 	uint16_t colTableBufLen;	// Length of the color table buffer
-}pifDEC_t;
+}pifPAINT_t;
 
 // FILE I/O FUNCTIONS REQUIRED FOR BASIC FUNCTIONALITY
 // Calls with pointer to string and pointer to char. Expects a fileHandler pointer or a non-zero value in *fileError
@@ -119,9 +119,9 @@ typedef struct {
 	pifIO_t *pifFileHandler;// File Read Functions
 }pifHANDLE_t;
 
-pifRESULT pif_createDecoder(pifDEC_t *p_decoder, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength);
+pifRESULT pif_createPainter(pifPAINT_t *p_painter, PIF_PREPARE_IMAGE *f_optional_prepare, PIF_DRAW_PIXEL *f_draw, PIF_FINISH_IMAGE *f_optional_finish, void *p_displayHandler, uint8_t *p8_opt_ColTableBuf, uint16_t u16_colTableBufLength);
 pifRESULT pif_createIO(pifIO_t *p_fileIO, PIF_OPEN_FILE *f_openFile, PIF_CLOSE_FILE *f_closeFile, PIF_READ_FILE *f_readFile, PIF_SEEK_FILE *f_seekFile);
-void pif_createPIFHandle(pifHANDLE_t *p_PIF, pifIO_t *p_fileIO, pifDEC_t *p_decoder);
+void pif_createPIFHandle(pifHANDLE_t *p_PIF, pifIO_t *p_fileIO, pifPAINT_t *p_painter);
 
 pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path);
 pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0);

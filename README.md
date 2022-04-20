@@ -5,6 +5,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
 ## Features
  - **Runs on any Microcontroller (or better) with at least 60 bytes of free RAM** (checked on ATmega328p)
  - Easy implementation via callback functions, allowing flash-memory or files as source
+ - Export as a .pif or .h C-Header file
  - No external depencies or use of malloc/free
  - Fast execution and low memory profile
  - Various Bitformats supported:
@@ -57,7 +58,58 @@ The library presented here is made to support the whole image format specificati
 
 To use the library, the file I/O functions as well has drawing functions have to be passed to the library. Using he file I/O functions, pretty much any kind of storage system can be used, including the internal flash memory if a basic read function is coded for it.
 
+```c
+#include "pifdec.h"
+
+...
+
+pifPAINT_t pifPaintingStruct;
+pifIO_t pifFileIOStruct;
+pifHANDLE_t pifHandler;
+
+/* Optional Buffer to speed up the operation of indexed images */
+uint8_t optionalColorTable[32];
+
+/* Preparing the painting structure */
+pif_createPainter(&pifPaintingStruct,	// Structure to initialise
+					display_PrepareOp,	// Optional func called before drawing
+					display_DrawPixel,	// Painting the image, pixel by pixel
+					display_Refresh,	// Optional func when done drawing
+					NULL,				// Optional display handler pointer
+					optionalColorTable,	// Optional color table
+					sizeof(optionalColorTable)	// Size of the color table
+);
+/* Preparing the I/O function */
+pif_createIO(&pifFileIOStruct,	// Structure to initialise
+			fs_open,			// Opening the file or preparing the operation
+			fs_close,			// Closing the file / finishing the operation
+			fs_read,			// Reading the file
+			fs_seek				// Changing file index position
+);
+/* Last but not least, combining the previous handlers */
+pif_createPIFHandle(&pifHandler, &pifFileIOStruct, &pifPaintingStruct);
+
+...
+
+/* Now an image can be drawn simply by calling "pif_OpenAndDisplay" */
+pifRESULT res = pif_OpenAndDisplay(&pifHandler,	// Pass over the PIF Handler
+					"0:TESTIMAGE.PIF",	// string directly passed to fs_open
+					0,					// X positon on the display
+					0					// Y position on the display
+);
+
+/* Check if any of the Drawing or FileIO function returned a error: */
+if (res != PIF_RESULT_OK)
+{
+	// Process error...
+}
+
+```
+
 In order to support even certain grayscale or e-ink displays, the library can ignore the color lookup table and directly send the raw value to the display driver, allowing to use the indexed lookup table as a way to implement custom formats suited for the specific display.
+
+[Check the examples to see possible implementations and capabilities](/C%20Library/examples/README.md)
+
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
  - [x] Image Converter
@@ -73,5 +125,5 @@ We still have some steps ahead of us before this project can be considered finis
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
 		- [ ] ATxmega
-		- [ ] GD32VF103 (RISC-V)
+		- [x] GD32VF103 (RISC-V)
 	- [x] Universal / Portable C Library
