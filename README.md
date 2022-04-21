@@ -4,8 +4,8 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
 
 ## Features
  - **Runs on any Microcontroller (or better) with at least 60 bytes of free RAM** (checked on ATmega328p)
- - Easy implementation via callback functions, allowing flash-memory or files as source
  - Export as a .pif or .h C-Header file
+ - Easy implementation via callback functions, allowing flash-memory or file systems as source
  - No external depencies or use of malloc/free
  - Fast execution and low memory profile
  - Various Bitformats supported:
