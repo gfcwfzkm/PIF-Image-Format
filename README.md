@@ -71,20 +71,20 @@ pifHANDLE_t pifHandler;
 uint8_t optionalColorTable[32];
 
 /* Preparing the painting structure */
-pif_createPainter(&pifPaintingStruct,	// Structure to initialise
-                display_PrepareOp,	// Optional func called before drawing
-                display_DrawPixel,	// Painting the image, pixel by pixel
-                display_Refresh,	// Optional func when done drawing
-                NULL,				// Optional display handler pointer
-                optionalColorTable,	// Optional color table
-                sizeof(optionalColorTable)	// Size of the color table
+pif_createPainter(&pifPaintingStruct,      // Structure to initialise
+                display_PrepareOp,         // Optional func called before drawing
+                display_DrawPixel,         // Painting the image, pixel by pixel
+                display_Refresh,           // Optional func when done drawing
+                NULL,                      // Optional display handler pointer
+                optionalColorTable,        // Optional color table
+                sizeof(optionalColorTable) // Size of the color table
 );
 /* Preparing the I/O function */
-pif_createIO(&pifFileIOStruct,	// Structure to initialise
-            fs_open,			// Opening the file or preparing the operation
-            fs_close,			// Closing the file / finishing the operation
-            fs_read,			// Reading the file
-            fs_seek				// Changing file index position
+pif_createIO(&pifFileIOStruct,  // Structure to initialise
+            fs_open,            // Opening the file or preparing the operation
+            fs_close,           // Closing the file / finishing the operation
+            fs_read,            // Reading the file
+            fs_seek             // Changing file index position
 );
 /* Last but not least, combining the previous handlers */
 pif_createPIFHandle(&pifHandler, &pifFileIOStruct, &pifPaintingStruct);
@@ -93,9 +93,9 @@ pif_createPIFHandle(&pifHandler, &pifFileIOStruct, &pifPaintingStruct);
 
 /* Now an image can be drawn simply by calling "pif_OpenAndDisplay" */
 pifRESULT res = pif_OpenAndDisplay(&pifHandler,	// Pass over the PIF Handler
-                "0:TESTIMAGE.PIF",	// string directly passed to fs_open
-                0,					// X positon on the display
-                0					// Y position on the display
+                "0:TESTIMAGE.PIF",  // string directly passed to fs_open
+                0,                  // X positon on the display
+                0                   // Y position on the display
 );
 
 /* Check if any of the Drawing or FileIO function returned a error: */
