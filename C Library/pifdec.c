@@ -144,7 +144,7 @@ uint32_t _read32(pifIO_t *p_io)
 	return (uint32_t)data8[3] << 24 | (uint32_t)data8[2] << 16 | (uint32_t)data8[1] << 8 | data8[0];
 }
 
-inline uint32_t _getRGB16C(uint8_t color)
+static inline uint32_t _getRGB16C(uint8_t color)
 {
 #if defined(PIF_RGB16C_RGB888)
 	return ((uint32_t)color_table_16C[color * 3] << 16) | ((uint32_t)color_table_16C[color * 3 + 1] << 8) | (color_table_16C[color * 3 + 2]);
@@ -157,7 +157,7 @@ inline uint32_t _getRGB16C(uint8_t color)
 #endif
 }
 
-inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif, uint8_t *seekUsed)
+static inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif, uint8_t *seekUsed)
 {
 	uint8_t mult = p_pif->pifInfo.imageType & PIF_MASK_INDEXED_COLOR_SIZE;
 	uint32_t pixelColor;
