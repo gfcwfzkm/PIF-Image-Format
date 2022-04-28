@@ -124,6 +124,6 @@ We still have some steps ahead of us before this project can be considered finis
  - [x] Portable C Library Code & Examples
 	- [ ] Reference implementation for various platforms
 		- [ ] Arduino / Arduino-Framework
-		- [ ] ATxmega
+		- [x] ATxmega
 		- [x] GD32VF103 (RISC-V)
 	- [x] Universal / Portable C Library
