@@ -10,3 +10,8 @@ Main Enviroment when developing the PIF C Library, using a FAT16-formatted 64MB 
 ## [GD32VF103 (RISC-V) / 7-Color E-Ink Display / Internal flash memory](GD32VF_epaper/README.md)
 Loading an pif image, as a header file, from the flash memory and displaying it on a 7-color e-ink display
 ![E-Ink PIF Image](GD32VF_epaper/img/reddead.jpg)
+
+## Arduino Uno (AVR) / 16-Bit Graphic Display / Internal flash memory
+Basic demo using the classic Arduino Uno and a simple 320 x 480 Pixel Display, supporting 16bpp data. This should give arduino users a basic idea how the image viewer can be used in an Arduino enviroment.
+Please note, due to the lack of avr-g++'s support for __flash and __xmem, PIF header files need to be adjusted manually to "PROGMEM" ( see the arduino project for more details )
+![Arduino Image Demo](Arduino/arduino_pif/IMG_20220508_030100.jpg)
