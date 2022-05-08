@@ -8,7 +8,7 @@ Main Enviroment when developing the PIF C Library, using a FAT16-formatted 64MB 
 ![RA8876 Display with a few images loaded](PIFtestENV/image.jpg)
 
 ## [GD32VF103 (RISC-V) / 7-Color E-Ink Display / Internal flash memory](GD32VF_epaper/README.md)
-Loading an pif image, as a header file, from the flash memory and displaying it on a 7-color e-ink display
+Loading an pif image, as a header file, from the flash memory and displaying it on a 7-color e-ink display. Thanks to a special flag in the library, instead of looking up the color of the 7-color-index table, the index value itself is sent directly to the drawing routines, allowing direct image conversion to e-paper display and displayign it easily on such - should likely work on many other displays that have similar quirks (for example 4-grayscale displays, red/black/white e-papers etc.)
 ![E-Ink PIF Image](GD32VF_epaper/img/reddead.jpg)
 
 ## Arduino Uno (AVR) / 16-Bit Graphic Display / Internal flash memory
