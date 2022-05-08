@@ -31,7 +31,7 @@ If the File Format is compared against bitmap, one can see that the image size r
 
 | Image Type    | File Size (Bytes) | BPP | Compression |
 |---------------|-------------------|-----|-------------|
-| Bitmap (.BPP) | 786 486           | 24  | None        |
+| Bitmap (.BMP) | 786 486           | 24  | None        |
 | PIF RGB888    | 786 460           | 24  | None        |
 | PIF RGB888    | 739 358           | 24  | RLE         |
 | PIF RGB565    | 524 316           | 16  | None        |
@@ -123,7 +123,7 @@ We still have some steps ahead of us before this project can be considered finis
 	- [x] Show details and stats
 	- [x] Allow Export to other image formats
  - [x] Portable C Library Code & Examples
-	- [ ] Reference implementation for various platforms
+	- [x] Reference implementation for various platforms
 		- [x] Arduino / Arduino-Framework
 		- [x] ATxmega
 		- [x] GD32VF103 (RISC-V)
