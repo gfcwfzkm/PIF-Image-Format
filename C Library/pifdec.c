@@ -14,16 +14,6 @@
 	#define _PMEMX
 #endif
 
-// Todo: Color converter Function for the user-implemented driver using integer math
-// Converting from any mode to any mode
-// Converting from RGB888 to RGB565/RGB332 or RGB565 to RGB332: Simple mask conversion
-// Possible way to convert RGB332 to RGB888:
-// red = (36*r + 3)
-// green = (36*g + 3)
-// blue = 85 * b
-// Possible way to convert RGB332 to RGB565:
-// Possible way to convert RGB565 to RGB888:
-
 
 // CGA / 16 Color palette generated with the following formula:
 // red	 = 2/3�(colorNumber & 4)/4 + 1/3�(colorNumber & 8)/8 * 255
@@ -205,7 +195,7 @@ uint8_t _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
 			case PIF_TYPE_RGB16C:
 				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), _getRGB16C(pixelGroup & 0x0F));
 				break;
-			case PIF_TYPE_MONO:
+			case PIF_TYPE_BW:
 				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (pixelGroup & 1) ? _getRGB16C(15) : _getRGB16C(0));
 				break;
 			default:
@@ -305,7 +295,7 @@ pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path)
 			p_PIF->pifInfo.imageType = PIF_TYPE_RGB16C;
 			break;
 		case PIF_FORMAT_BW:
-			p_PIF->pifInfo.imageType = PIF_TYPE_MONO;
+			p_PIF->pifInfo.imageType = PIF_TYPE_BW;
 			break;
 		case PIF_FORMAT_IND24:
 			p_PIF->pifInfo.imageType = PIF_TYPE_IND24;
@@ -557,4 +547,93 @@ pifRESULT pif_OpenAndDisplay(pifHANDLE_t *p_PIF, const char *pc_path, uint16_t x
 	if (result != PIF_RESULT_OK)	return result;
 	result = pif_close(p_PIF);
 	return result;
+}
+
+// Color converter Function for the user-implemented driver using integer math
+// Converting from any mode to any mode
+// Converting from RGB888 to RGB565/RGB332 or RGB565 to RGB332: Simple mask conversion
+// Possible way to convert RGB332 to RGB888:
+// red = 36*r + 3
+// green = 36*g + 3
+// blue = 85 * b
+// Possible way to convert RGB332 to RGB565:
+// red = 4*r + 3
+// green = 9*g
+// blue = 30*b
+// Possible way to convert RGB565 to RGB888:
+// red = 8*r + 4
+// green = 4*g + 3
+// blue = 8*b + 3
+uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targetType)
+{
+	uint32_t outColor = 0;
+
+	switch (targetType)
+	{
+		case PIF_TYPE_RGB888:
+		case PIF_TYPE_IND24:
+			switch (sourceType)
+			{
+				case PIF_TYPE_RGB332:
+				case PIF_TYPE_IND8:
+					outColor = (((color & 0xE0) >> 5) * 36 + 3) << 16;	// red
+					outColor |= (((color & 0x1C) >> 2) * 36 + 3) << 8;	// green
+					outColor |= ((color & 0x03) * 85);					// blue
+					break;
+				case PIF_TYPE_RGB565:
+				case PIF_TYPE_IND16:
+					outColor = (((color & 0xF800) >> 11) * 8 + 4) << 16;// red
+					outColor |= (((color & 0x07E0) >> 5) * 4 + 3) << 8;	// green
+					outColor |= ((color & 0x001F) * 8 + 3);				// blue
+					break;
+				default:
+					// Nothing to do
+			}
+			break;
+		case PIF_TYPE_RGB565:
+		case PIF_TYPE_IND16:
+			switch (sourceType)
+			{
+				case PIF_TYPE_RGB888:
+				case PIF_TYPE_IND24:
+					outColor = (color & 0xF80000) >> 8;		// red
+					outColor |= (color & 0x00FC00) >> 5;	// green
+					outColor |= (color & 0x0000F8) >> 3;	// blue
+					break;
+				case PIF_TYPE_RGB332:
+				case PIF_TYPE_IND8:
+					outColor = (((color & 0xE0) >> 5) * 4 + 3) << 11;	// red
+					outColor |= (((color & 0x1C) >> 2) * 9) << 5;		// green
+					outColor |= ((color & 0x03) * 30);					// blue
+					break;
+				default:
+					// Nothing to do
+			}
+			break;
+		case PIF_TYPE_RGB332:
+		case PIF_TYPE_IND8:
+			switch (sourceType)
+			{
+				case PIF_TYPE_RGB888:
+				case PIF_TYPE_IND24:
+					outColor = (color & 0xE00000) >> 16;	// red
+					outColor |= (color & 0x00E000) >> 11;	// green
+					outColor |= (color & 0x0000C0) >> 6;	// blue
+					break;
+				case PIF_TYPE_RGB565:
+				case PIF_TYPE_IND16:
+					outColor = (color & 0xE000) >> 8;		// red
+					outColor |= (color & 0x0700) >> 6;		// green
+					outColor |= (color & 0x0018) >> 3;		// blue
+					break;
+				default:
+					// Nothing to do
+			}
+			break;
+		default:
+			// BW and RGB16 Conversion not supported, as the user
+			// can configure the fitting pixel type in the header
+	}
+
+	return outColor;
 }

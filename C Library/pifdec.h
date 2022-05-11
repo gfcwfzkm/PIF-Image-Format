@@ -32,7 +32,7 @@ typedef enum {
 // Todo: Function to convert from any color mode to any color mode
 // accurate and fast.
 typedef enum {
-	PIF_DISPLAY_MONO	= 0x01,
+	PIF_DISPLAY_BW		= 0x01,
 	PIF_DISPLAY_RGB16C	= 0x02,
 	PIF_DISPLAY_RGB332	= 0x04,
 	PIF_DISPLAY_RGB565	= 0x08,
@@ -47,7 +47,7 @@ typedef enum {
 	PIF_TYPE_RGB565 = 1,
 	PIF_TYPE_RGB332 = 2,
 	PIF_TYPE_RGB16C = 3,
-	PIF_TYPE_MONO	= 4,
+	PIF_TYPE_BW		= 4,
 	PIF_TYPE_IND8	= 5,
 	PIF_TYPE_IND16	= 6,
 	PIF_TYPE_IND24	= 7
@@ -59,8 +59,8 @@ typedef enum {
 }pifCompression;
 
 typedef enum {
-	PIF_INDEXED_NORMAL_OPERATION = 0,
-	PIF_INDEXED_BYPASS_LOOKUP = 1
+	PIF_INDEXED_NORMAL_OPERATION = 0,	// Normal operation
+	PIF_INDEXED_BYPASS_LOOKUP = 1		// Ignore index table, send index value to user
 }pifIndexedBypass;
 
 typedef struct {
@@ -131,5 +131,9 @@ pifRESULT pif_close(pifHANDLE_t *p_PIF);
 // Combines pif_open, pif_display and pif_close in one call
 pifRESULT pif_OpenAndDisplay(pifHANDLE_t *p_PIF, const char *pc_path, uint16_t x0, uint16_t y0);
 
+// Convert the pixel image data from one type to the other type as accurate as possible
+// If possible, use images supported natively by the display - this is a helper function
+// to provide image support for any display type.
+uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targetType);
 
 #endif /* PIFDEC_H_ */
