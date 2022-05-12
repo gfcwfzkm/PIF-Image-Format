@@ -1,6 +1,6 @@
 # PIF GUI Converter by gfcwfzkm (02.2022)
 # Dependencies: pillow & pysimplegui
-# Might require python 3.10 or higher
+# Requires python 3.10 or higher
 # (Sorry if things don't look too professional, functionality first, optimizations later)
 
 import os
@@ -571,16 +571,21 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 	elif (fileInfo[2] == "h"):
 		PIFFile = open(path, "wt")
 		PIFFile.write(f'#ifndef PIF_H_{fileInfo[0]}\n#define PIF_H_{fileInfo[0]}\n\n#include <inttypes.h>\n\n// https://github.com/gfcwfzkm/PIF-Image-Format\n\n')
-		PIFFile.write(f'#ifdef AVR\n\t#include <avr/pgmspace.h>\n\t#define _P_MEMX __memx\n#else\n\t#define _P_MEMX\n#endif\n\n')
-		PIFFile.write(f'const _P_MEMX uint8_t {fileInfo[0]}[{iSize}] = {{')
+		PIFFile.write(f'#if defined(AVR) && !defined(__GNUG__)\n\t#include <avr/pgmspace.h>\n\t#define _P_MEMX __memx\n\t#define _PMEM\n')
+		PIFFile.write(f'#elif defined(AVR) && defined(__GNUG__)\n\t#include <avr/pgmspace.h>\n\t#define _P_MEMX\n\t#define _PMEM PROGMEM\n')
+		PIFFile.write(f'#else\n\t#define _P_MEMX\n\t#define _PMEM\n#endif\n\n')
+		PIFFile.write(f'const _P_MEMX uint8_t {fileInfo[0]}[{iSize}] _PMEM = {{')
 		for index in range(len(tTotalPIF)):
 			if (index % 16 == 0):	PIFFile.write('\n\t')
 			PIFFile.write(f'0x{tTotalPIF[index]:02X}, ')
 		PIFFile.write(f'\n}};\n\n#endif // PIF_H_{fileInfo[0]}\n')
 		PIFFile.close()
 
-
 	return iSize
+
+def openPIF(path):
+
+	return pifImage
 
 #########################################################################
 #                    INDEXING OPTIONS WINDOW                            #
