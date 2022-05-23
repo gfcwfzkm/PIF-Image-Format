@@ -1,6 +1,11 @@
 /*
  * pifdec.h
  *
+ * PIF Decoder Library
+ * Copyright (c) 2022 gfcwfzkm ( gfcwfzkm@protonmail.com )
+ * License: GNU Lesser General Public License, Version 2.1
+ * 		http://www.gnu.org/licenses/lgpl-2.1.html
+ *
  * Created: 01.04.2022
  *  Author: gfcwfzkm
  */ 
@@ -20,42 +25,31 @@
 //#define PIF_RGB16C_RGB332
 
 typedef enum {
-	PIF_RESULT_OK,
-	PIF_RESULT_IOERR,
-	PIF_RESULT_DRAWERR,
-	PIF_RESULT_FORMATERR
+	PIF_RESULT_OK,			// Operation was successful
+	PIF_RESULT_IOERR,		// I/O File error
+	PIF_RESULT_DRAWERR,		// Drawing Routines error
+	PIF_RESULT_FORMATERR	// PIF File Format error
 }pifRESULT;
 
-/*
-// Todo: Configure the supported modes by the display, apply conversion
-// within the library to the display's right format. 
-// Todo: Function to convert from any color mode to any color mode
-// accurate and fast.
 typedef enum {
-	PIF_DISPLAY_BW		= 0x01,
-	PIF_DISPLAY_RGB16C	= 0x02,
-	PIF_DISPLAY_RGB332	= 0x04,
-	PIF_DISPLAY_RGB565	= 0x08,
-	PIF_DISPLAY_RGB888	= 0x10,
-	PIF_DISPLAY_RGB		= 0x1C,
-	PIF_DISPLAY_ALL		= 0x1F
-}pifSupportedType;
-*/
-
-typedef enum {
-	PIF_TYPE_RGB888 = 0,
-	PIF_TYPE_RGB565 = 1,
-	PIF_TYPE_RGB332 = 2,
-	PIF_TYPE_RGB16C = 3,
-	PIF_TYPE_BW		= 4,
-	PIF_TYPE_IND8	= 5,
-	PIF_TYPE_IND16	= 6,
-	PIF_TYPE_IND24	= 7
+	PIF_TYPE_RGB888 = 0,	// RGB888
+	PIF_TYPE_RGB565 = 1,	// RGB565
+	PIF_TYPE_RGB332 = 2,	// RGB332
+	PIF_TYPE_RGB16C = 3,	// RGB16C
+	PIF_TYPE_BW		= 4,	// BW
+	PIF_TYPE_IND8	= 5,	// IND8
+	PIF_TYPE_IND16	= 6,	// IND16
+	PIF_TYPE_IND24	= 7		// IND24
 }pifImageType;
 
 typedef enum {
-	PIF_COMPRESSION_NONE = 0,
-	PIF_COMPRESSION_RLE
+	PIF_CONV_ACCURATE = 0,	// Accurate conversion
+	PIF_CONV_FAST = 1		// Fast conversion
+}pifColorConversion;
+
+typedef enum {
+	PIF_COMPRESSION_NONE = 0,	// No compression
+	PIF_COMPRESSION_RLE			// RLE compression
 }pifCompression;
 
 typedef enum {
@@ -133,7 +127,8 @@ pifRESULT pif_OpenAndDisplay(pifHANDLE_t *p_PIF, const char *pc_path, uint16_t x
 
 // Convert the pixel image data from one type to the other type as accurate as possible
 // If possible, use images supported natively by the display - this is a helper function
-// to provide image support for any display type.
-uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targetType);
+// to provide image support for any display type. Setting convMode to 1 enables a faster conversion method at the
+// cost of color accuracy.
+uint32_t convertColor(uint32_t clor, pifImageType sourceType, pifImageType targetType, pifColorConversion convMode);
 
 #endif /* PIFDEC_H_ */

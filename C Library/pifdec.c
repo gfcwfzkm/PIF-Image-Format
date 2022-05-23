@@ -1,17 +1,29 @@
 /*
  * pifdec.c
+
+ * PIF Decoder Library
+ * Copyright (c) 2022 gfcwfzkm ( gfcwfzkm@protonmail.com )
+ * License: GNU Lesser General Public License, Version 2.1
+ * 		http://www.gnu.org/licenses/lgpl-2.1.html
  *
  * Created: 01.04.2022
  *  Author: gfcwfzkm
- */
+ */ 
 
 #include "pifdec.h"
 
-#ifdef AVR
+#if defined(AVR) && !defined(__GNUG__)
 	#include <avr/pgmspace.h>
 	#define _PMEMX	__memx
+	#define _PRGM
+#elif defined(AVR) && defined(__GNUG__)
+	#include <avr/pgmspace.h>
+	#define ARDUINO_IN_USE
+	#define _PMEMX 
+	#define _PRGM	PROGMEM
 #else
 	#define _PMEMX
+	#define _PRGM
 #endif
 
 
@@ -20,7 +32,7 @@
 // green = 2/3�(colorNumber & 2)/2 + 1/3�(colorNumber & 8)/8 * 255
 // blue	 = 2/3�(colorNumber & 1)/1 + 1/3�(colorNumber & 8)/8 * 255
 #if defined(PIF_RGB16C_RGB888)
-const _PMEMX uint8_t color_table_16C[48] = {
+const _PMEMX uint8_t color_table_16C[48] _PRGM = {
 	0, 0, 0,		// black
 	0, 0, 170,		// blue
 	0, 170, 0,		// green
@@ -39,7 +51,7 @@ const _PMEMX uint8_t color_table_16C[48] = {
 	255, 255, 255	// white
 };
 #elif defined(PIF_RGB16C_RGB565)
-const _PMEMX uint8_t color_table_16C[32] = {
+const _PMEMX uint8_t color_table_16C[32] _PRGM = {
 	0x00, 0x00,	// black
 	0x00, 0x15,	// blue
 	0x05, 0x40,	// green
@@ -58,7 +70,7 @@ const _PMEMX uint8_t color_table_16C[32] = {
 	0xFF, 0xFF	// white
 };
 #elif defined(PIF_RGB16C_RGB332)
-const _PMEMX uint8_t color_table_16C[16] = {
+const _PMEMX uint8_t color_table_16C[16] _PRGM = {
 	0x00,	// black
 	0x02,	// blue
 	0x14,	// green
@@ -97,6 +109,7 @@ const _PMEMX uint8_t color_table_16C[16] = {
 #define PIF_MASK_INDEXED_COLOR_SIZE		0x03
 #define PIF_MASK_INDEXED_MODE_IN_USE	0x04
 
+/* Read data at various sizes, making sure the right endian is used */
 uint8_t _read8(pifIO_t *p_io)
 {
 	uint8_t data8;
@@ -134,19 +147,34 @@ uint32_t _read32(pifIO_t *p_io)
 	return (uint32_t)data8[3] << 24 | (uint32_t)data8[2] << 16 | (uint32_t)data8[1] << 8 | data8[0];
 }
 
+/* Read the static color table for BW / RGB16C */
 static inline uint32_t _getRGB16C(uint8_t color)
 {
-#if defined(PIF_RGB16C_RGB888)
-	return ((uint32_t)color_table_16C[color * 3] << 16) | ((uint32_t)color_table_16C[color * 3 + 1] << 8) | (color_table_16C[color * 3 + 2]);
-#elif defined(PIF_RGB16C_RGB565)
-	return ((uint32_t)color_table_16C[color * 2] << 8) | ((uint32_t)color_table_16C[color * 2 + 1]);
-#elif defined(PIF_RGB16C_RGB332)
-	return ((uint32_t)color_table_16C[color]);
+#if defined(ARDUINO_IN_USE)
+	#warning "Arduino static indexed colors not fully tested - be aware!"
+	#if defined(PIF_RGB16C_RGB888)
+		return ((uint32_t)pgm_read_dword(&(color_table_16C[color * 3])) << 16) | ((uint32_t)pgm_read_dword(&(color_table_16C[color * 3 + 1))] << 8) | (pgm_read_dword(&(color_table_16C[color * 3 + 2])));
+	#elif defined(PIF_RGB16C_RGB565)
+		return ((uint32_t)pgm_read_dword(&(color_table_16C[color * 2])) << 8) | ((uint32_t)pgm_read_dword(&(color_table_16C[color * 2 + 1])));
+	#elif defined(PIF_RGB16C_RGB332)
+		return ((uint32_t)pgm_read_dword(&(color_table_16C[color])));
+	#else
+		#error "You need to configure which color-format you want to use for the RGB16C image mode!"
+	#endif
 #else
-	#error "You need to configure which color-format you want to use for the RGB16C image mode!"
+	#if defined(PIF_RGB16C_RGB888)
+		return ((uint32_t)color_table_16C[color * 3] << 16) | ((uint32_t)color_table_16C[color * 3 + 1] << 8) | (color_table_16C[color * 3 + 2]);
+	#elif defined(PIF_RGB16C_RGB565)
+		return ((uint32_t)color_table_16C[color * 2] << 8) | ((uint32_t)color_table_16C[color * 2 + 1]);
+	#elif defined(PIF_RGB16C_RGB332)
+		return ((uint32_t)color_table_16C[color]);
+	#else
+		#error "You need to configure which color-format you want to use for the RGB16C image mode!"
+	#endif
 #endif
 }
 
+/* Read the indexed color either from the buffer or from the file */
 static inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif, uint8_t *seekUsed)
 {
 	uint8_t mult = p_pif->pifInfo.imageType & PIF_MASK_INDEXED_COLOR_SIZE;
@@ -180,6 +208,7 @@ static inline uint32_t _getIndexedColor(uint8_t color, pifHANDLE_t *p_pif, uint8
 	return pixelColor;
 }
 
+/* Process the indexed image by looking up the color table */
 uint8_t _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
 {
 	uint8_t seek_used = 0;
@@ -188,27 +217,40 @@ uint8_t _processIndexed(pifHANDLE_t *p_pif, uint8_t pixelGroup)
 	uint8_t const pixelLimit = 8 / bitsPerPixel;
 	uint8_t const pixelMask = (1 << p_pif->pifInfo.bitsPerPixel) - 1;
 	
+	// Process the bits, that are packed within a byte and look up it's color
 	for (;pixelCounter < pixelLimit; pixelCounter++)
 	{
-		switch (p_pif->pifInfo.imageType)
+		// If the color table is to be bypassed, send the raw value straight to the drawing function,
+		// otherwise look it up according to the image format
+		if (p_pif->pifDecoder->bypassColTable == PIF_INDEXED_NORMAL_OPERATION)
 		{
-			case PIF_TYPE_RGB16C:
-				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), _getRGB16C(pixelGroup & 0x0F));
-				break;
-			case PIF_TYPE_BW:
-				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (pixelGroup & 1) ? _getRGB16C(15) : _getRGB16C(0));
-				break;
-			default:
-				p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (p_pif->pifDecoder->bypassColTable==PIF_INDEXED_NORMAL_OPERATION) ? _getIndexedColor(pixelGroup & pixelMask, p_pif, &seek_used) : pixelGroup & pixelMask);
+			switch (p_pif->pifInfo.imageType)
+			{
+				case PIF_TYPE_RGB16C:
+					p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), _getRGB16C(pixelGroup & 0x0F));
+					break;
+				case PIF_TYPE_BW:
+					p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), (pixelGroup & 1) ? _getRGB16C(15) : _getRGB16C(0));
+					break;
+				default:
+					p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), _getIndexedColor(pixelGroup & pixelMask, p_pif, &seek_used));
+					break;
+			}
+		}
+		else
+		{
+			p_pif->pifDecoder->draw(p_pif->pifDecoder->displayHandle, &(p_pif->pifInfo), pixelGroup & pixelMask);
 		}
 		
+		// Cycle to the next bitgroup that represents a pixel
+		// if none is left to process within the byte, return
 		pixelGroup >>= bitsPerPixel;
 		
 		if (pixelCounter >= 1)
 		{
 			p_pif->pifInfo.currentX++;
 			if (p_pif->pifInfo.currentX >= p_pif->pifInfo.imageWidth)
-		{
+			{
 				p_pif->pifInfo.currentX = 0;
 				p_pif->pifInfo.currentY++;
 				if (p_pif->pifInfo.currentY >= p_pif->pifInfo.imageHeight)
@@ -564,7 +606,8 @@ pifRESULT pif_OpenAndDisplay(pifHANDLE_t *p_PIF, const char *pc_path, uint16_t x
 // red = 8*r + 4
 // green = 4*g + 3
 // blue = 8*b + 3
-uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targetType)
+// Alternatively a "fast" mode is supported, using only bitshift instructions
+uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targetType, pifColorConversion convMode)
 {
 	uint32_t outColor = 0;
 
@@ -576,15 +619,33 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 			{
 				case PIF_TYPE_RGB332:
 				case PIF_TYPE_IND8:
-					outColor = (((color & 0xE0) >> 5) * 36 + 3) << 16;	// red
-					outColor |= (((color & 0x1C) >> 2) * 36 + 3) << 8;	// green
-					outColor |= ((color & 0x03) * 85);					// blue
+					if (convMode == PIF_CONV_ACCURATE)
+					{
+						outColor = (((color & 0xE0) >> 5) * 36 + 3) << 16;	// red
+						outColor |= (((color & 0x1C) >> 2) * 36 + 3) << 8;	// green
+						outColor |= ((color & 0x03) * 85);					// blue
+					}
+					else
+					{
+						outColor = (((color & 0xE0) >> 5) << 5) << 16;	// red
+						outColor |= (((color & 0x1C) >> 2) << 5) << 8;	// green
+						outColor |= ((color & 0x03) << 6);				// blue
+					}
 					break;
 				case PIF_TYPE_RGB565:
 				case PIF_TYPE_IND16:
-					outColor = (((color & 0xF800) >> 11) * 8 + 4) << 16;// red
-					outColor |= (((color & 0x07E0) >> 5) * 4 + 3) << 8;	// green
-					outColor |= ((color & 0x001F) * 8 + 3);				// blue
+					if (convMode == PIF_CONV_ACCURATE)
+					{
+						outColor = (((color & 0xF800) >> 11) * 8 + 4) << 16;// red
+						outColor |= (((color & 0x07E0) >> 5) * 4 + 3) << 8;	// green
+						outColor |= ((color & 0x001F) * 8 + 3);				// blue
+					}
+					else
+					{
+						outColor = (((color & 0xF800) >> 11) << 3) << 16;	// red
+						outColor |= (((color & 0x07E0) >> 5) << 2) << 8;	// green
+						outColor |= ((color & 0x001F) << 3);				// blue
+					}
 					break;
 				default:
 					// Nothing to do
@@ -602,9 +663,18 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 					break;
 				case PIF_TYPE_RGB332:
 				case PIF_TYPE_IND8:
-					outColor = (((color & 0xE0) >> 5) * 4 + 3) << 11;	// red
-					outColor |= (((color & 0x1C) >> 2) * 9) << 5;		// green
-					outColor |= ((color & 0x03) * 30);					// blue
+					if (convMode == PIF_CONV_ACCURATE)
+					{
+						outColor = (((color & 0xE0) >> 5) * 4 + 3) << 11;	// red
+						outColor |= (((color & 0x1C) >> 2) * 9) << 5;		// green
+						outColor |= ((color & 0x03) * 10);					// blue
+					}
+					else
+					{
+						outColor = (((color & 0xE0) >> 5) << 2) << 11;		// red
+						outColor |= (((color & 0x1C) >> 2) << 3) << 5;		// green
+						outColor |= ((color & 0x03) << 3);					// blue
+					}
 					break;
 				default:
 					// Nothing to do
