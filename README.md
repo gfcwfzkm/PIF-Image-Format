@@ -107,8 +107,14 @@ if (res != PIF_RESULT_OK)
 ```
 
 In order to support even certain grayscale or e-ink displays, the library can ignore the color lookup table and directly send the raw value to the display driver, allowing to use the indexed lookup table as a way to implement custom formats suited for the specific display.
+### [Check the examples to see possible implementations and capabilities](/C%20Library/examples/README.md)
 
-## [Check the examples to see possible implementations and capabilities](/C%20Library/examples/README.md)
+
+## Alternative Implementations
+While this is a reference library to use the PIF Format, it doesn't mean one can make their own version, possibly in a different language as well! Here are PIF implementations and projects listed by different users:
+|Project name | Description / Language |
+|-------------|------------------------|
+|[Pascal PIF Format](https://github.com/dilshan/pascal-pif-library)|PIF Library for Lazarus / Delphi, written in Pascal
 
 ## Todo
 We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
