@@ -46,7 +46,7 @@ If the File Format is compared against bitmap, one can see that the image size r
 All image files can be found in test_images\Lenna, together with some dithered and indexed examples.
 ## Tools
 ### PIF Image Converter
-( Required Python Version: 3.10 or higher, required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) )
+( Required Python Version: 3.10 or higher, required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) and [NumPy](https://numpy.org/) )
 ![Image of the Tool](test_images/tool_screenshot.png)
 A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
 ### PIF Image Viewer
