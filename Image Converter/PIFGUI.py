@@ -3,14 +3,16 @@
 # Requires python 3.10 or higher
 # (Sorry if things don't look too professional, functionality first, optimizations later)
 
+from dataclasses import dataclass
 import os
 import io
 import sys
 import threading
-from enum import Enum
+from enum import Enum		# Python 3.10 or higher required
 import PySimpleGUI as sg	# pip install pysimplegui
 import PIL.Image			# pip install pillow
 import PIL.ImageColor
+import numpy as np			# pip install numpy
 
 THREADWAIT = 0.1
 APP_ICON = b'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'
@@ -60,6 +62,16 @@ class ConversionType(Enum):
 class CompressionType(Enum):
 	NO_COMPRESSION 	= 0
 	RLE_COMPRESSION = 1
+
+class PIFFormat(Enum):
+	ImageTypeRGB888 = 0x433C
+	ImageTypeRGB565 = 0xE5C5
+	ImageTypeRGB332 = 0x1E53
+	ImageTypeRGB16C = 0xB895
+	ImageTypeBLWH   = 0x7DAA
+	ImageTypeIND24  = 0x4952
+	ImageTypeIND16  = 0x4947
+	ImageTypeIND8   = 0x4942
 
 #########################################################################
 #                     Convert Image to Bytes                            #
@@ -583,9 +595,122 @@ def savePIFbinary(imageHeader, colorTable, imageData, rlePos, path):
 
 	return iSize
 
-def openPIF(path):
+#########################################################################
+#                          READ IN PIF FILE                             #
+#########################################################################
+# Multiple functions in use for this
+def decompressRLE(rleData: np, bitsPerPixel, imageSize):
+	# uncompressedData = np.zeros(imageSize, dtype=np.uint8)
+	rleInstruction = 0
+	imageData = np.zeros(3, dtype=np.int8)
+	imagePointer = 0
+	dataCounter = 0
 
-	return pifImage
+	if (bitsPerPixel == 24):
+		uncompressedData = np.zeros(imageSize * 3, dtype=np.uint8)
+	elif (bitsPerPixel == 16):
+		uncompressedData = np.zeros(imageSize * 2, dtype=np.uint8)
+	elif (bitsPerPixel == 4):
+		uncompressedData = np.zeros(imageSize / 2, dtype=np.uint8)
+	else:
+		uncompressedData = np.zeros(imageSize, dtype=np.uint8)
+	
+	while (dataCounter < len(rleData)):
+		# Load next RLE-compressed image data
+		imageData[0] = rleData[dataCounter]
+
+		# Check RLE instruction
+		if (rleInstruction > 0):
+			if (bitsPerPixel >= 16):
+				dataCounter += 1
+				imageData[1] = rleData[dataCounter]
+			if (bitsPerPixel == 24):
+				dataCounter += 1
+				imageData[2] = rleData[dataCounter]
+			# RLE Instruction is positive; Repeat the image data rleInstruction amount of times
+			while(rleInstruction > 0):
+				uncompressedData[imagePointer] = imageData[0]
+				imagePointer += 1
+				if (bitsPerPixel >= 16):
+					uncompressedData[imagePointer] = imageData[1]
+					imagePointer += 1
+				if (bitsPerPixel == 24):
+					uncompressedData[imagePointer] = imageData[2]
+					imagePointer += 1
+				rleInstruction -= 1
+		elif (rleInstruction < 0):
+			# RLE Instruction is negative; The next (rleInstruction * -1) bytes are uncompressed
+			uncompressedData[imagePointer] = imageData[0]
+			imagePointer += 1
+			if (bitsPerPixel >= 16):
+				dataCounter += 1
+				uncompressedData[imagePointer] = rleData[dataCounter]
+				imagePointer += 1
+			if (bitsPerPixel == 24):
+				dataCounter += 1
+				uncompressedData[imagePointer] = rleData[dataCounter]
+				imagePointer += 1
+			rleInstruction += 1
+		else:
+			# RLE Instruction is 0; The next byte is the RLE instruction
+			rleInstruction = imageData[0]
+		dataCounter += 1
+	
+	return uncompressedData
+
+# Convert RGB565 / RGB332 / RGB16C and B/W images to RGB888
+def imageToRGB888(rawData: np, imageType, imageSize: int):
+	imageData = np.zeros(imageSize, dtype=np.uint8)
+	
+	if (imageType == PIFFormat.ImageTypeRGB565):
+		for i in range(0, len(rawData) - 1, 2):
+			imageData[i] = 0
+
+	return imageData
+
+def openPIF(path):
+	with open(path, "rb") as PIFFile:
+		PIFData = np.fromfile(PIFFile, dtype=np.uint8)
+		PIFFile.close()
+	if (PIFData[0] != 0x50 or PIFData[1] != 0x49 or PIFData[2] != 0x46 or PIFData[3] != 0x00 or len(PIFData) < 29):
+		print("Error: Invalid PIF file")
+		return False, 0
+	
+	# File seems valid, read in the values
+	ImageOffset = PIFData[8] + (PIFData[9] << 8) + (PIFData[10] << 16) + (PIFData[11] << 24)
+	ImageType = PIFData[12] + (PIFData[13] << 8)
+	BitsPerPixel = PIFData[14] + (PIFData[15] << 8)
+	ImageWidth = PIFData[16] + (PIFData[17] << 8)
+	ImageHeight = PIFData[18] + (PIFData[19] << 8)
+	ImageDataSize = PIFData[20] + (PIFData[21] << 8) + (PIFData[22] << 16) + (PIFData[23] << 24)
+	ColorTableSize = PIFData[24] + (PIFData[25] << 8)
+	Compression = PIFData[26] + (PIFData[27] << 8)
+
+	# Create the actual image array
+	PIFBitmap = np.zeros([ImageHeight, ImageWidth, 3], dtype=np.uint8)
+	#Raw Image Data to process
+	ImageDataRaw = np.copy(PIFData[ImageOffset:ImageOffset + ImageDataSize])
+
+	# Check if the image is compressed
+	if (Compression == 0x7DDE):
+		# Decompress the image data first
+		ImageDataRaw = decompressRLE(ImageDataRaw, BitsPerPixel, ImageWidth * ImageHeight)
+
+	# Image not RGB888? Convert to it
+
+	# Image even indexed? Convert that
+
+	# Color table not RGB888? Convert it
+	
+	ImgDataPtr = 0
+	for imgH in range(ImageHeight):
+		for imgW in range(ImageWidth):
+			PIFBitmap[imgH, imgW] = [ImageDataRaw[ImgDataPtr + 2], ImageDataRaw[ImgDataPtr + 1], ImageDataRaw[ImgDataPtr]]
+			ImgDataPtr += 3
+
+	pifImage = PIL.Image.fromarray(PIFBitmap, 'RGB')
+
+	return True, pifImage
 
 #########################################################################
 #                    INDEXING OPTIONS WINDOW                            #
@@ -915,12 +1040,18 @@ def main():
 		if (events == 'About'):
 			about()
 
-		# Open  image
+		# Open image
 		if ((events == 'Open') or (events == '-BTN_OPEN-')):
-			filename = sg.popup_get_file('Open Image', no_window=True, show_hidden=False, file_types=(("Images", "*.png *.gif *.bmp *.jpg *.jpeg"),))
+			filename = sg.popup_get_file('Open Image', no_window=True, show_hidden=False, file_types=(("Images", "*.png *.gif *.bmp *.jpg *.jpeg *.pif"),))
 			# Check if a image has been selected (aka popup returned a file path)
 			if (filename):	
-				OriginalImage = PIL.Image.open(filename).convert("RGB")
+				if (os.path.basename(filename).rpartition('.')[2] == 'pif'):
+					retVal, OriginalImage = openPIF(filename)
+					if (retVal) == False:
+						sg.popup('Error', 'Could not open the file.')
+						continue
+				else:
+					OriginalImage = PIL.Image.open(filename).convert("RGB")
 				window['-RB_COL_24B-'].update(True)
 				window['-RB_DIT_FS-'].update(disabled=True)
 				window['-RB_DIT_NO-'].update(True)
