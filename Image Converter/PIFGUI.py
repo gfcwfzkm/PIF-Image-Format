@@ -72,6 +72,8 @@ class PIFFormat(Enum):
 	ImageTypeIND24  = 0x4952
 	ImageTypeIND16  = 0x4947
 	ImageTypeIND8   = 0x4942
+	ImageTypeINDEXED = 0x4900
+	ColorTableOffset = 28
 
 #########################################################################
 #                     Convert Image to Bytes                            #
@@ -611,7 +613,7 @@ def decompressRLE(rleData: np, bitsPerPixel, imageSize):
 	elif (bitsPerPixel == 16):
 		uncompressedData = np.zeros(imageSize * 2, dtype=np.uint8)
 	elif (bitsPerPixel == 4):
-		uncompressedData = np.zeros(imageSize / 2, dtype=np.uint8)
+		uncompressedData = np.zeros(imageSize // 2, dtype=np.uint8)
 	else:
 		uncompressedData = np.zeros(imageSize, dtype=np.uint8)
 	
@@ -659,12 +661,80 @@ def decompressRLE(rleData: np, bitsPerPixel, imageSize):
 	return uncompressedData
 
 # Convert RGB565 / RGB332 / RGB16C and B/W images to RGB888
-def imageToRGB888(rawData: np, imageType, imageSize: int):
-	imageData = np.zeros(imageSize, dtype=np.uint8)
+def ConvertToRGB888(rawData: np, imageType, imageSize: int):
+	imageData = np.zeros(imageSize * 3, dtype=np.uint8)
 	
-	if (imageType == PIFFormat.ImageTypeRGB565):
-		for i in range(0, len(rawData) - 1, 2):
-			imageData[i] = 0
+	imageDataPointer = 0
+	if ((imageType == PIFFormat.ImageTypeRGB565.value) or (imageType == PIFFormat.ImageTypeIND16.value)):
+		for index in range(0, len(rawData), 2):
+			# Convert RGB565 to RGB888
+			imageData[imageDataPointer] = round(((rawData[index] & 0x1F) << 3) * 1.028225806451613)
+			imageData[imageDataPointer + 1] = round(((rawData[index] & 0xE0) << 3 | (rawData[index + 1] & 0x07) << 5) * 1.011904762)
+			imageData[imageDataPointer + 2] = round((rawData[index + 1] & 0xF8) * 1.028225806451613)
+			imageDataPointer += 3
+	elif ((imageType == PIFFormat.ImageTypeRGB332.value) or (imageType == PIFFormat.ImageTypeIND8.value)):
+		print(imageType)
+		for index in range(len(rawData)):
+			# Convert RGB332 to RGB888
+			imageData[imageDataPointer] = round(((rawData[index] & 0x3) << 6) * 1.328125)
+			imageData[imageDataPointer + 1] = round(((rawData[index] & 0x1C) << 3) * 1.138392857)
+			imageData[imageDataPointer + 2] = round((rawData[index] & 0xE0) * 1.138392857)
+			imageDataPointer += 3
+	elif (imageType == PIFFormat.ImageTypeRGB16C.value):
+		for index in range(imageSize):
+			colorValue = (rawData[index // 2] & (0x0F << ((index % 2) * 4))) >> ((index % 2) * 4)
+			imageData[imageDataPointer] = WINDOWS16COLORPAL[colorValue * 3 + 2]
+			imageData[imageDataPointer + 1] = WINDOWS16COLORPAL[colorValue * 3 + 1]
+			imageData[imageDataPointer + 2] = WINDOWS16COLORPAL[colorValue * 3]
+			imageDataPointer += 3
+	elif (imageType == PIFFormat.ImageTypeBLWH.value):
+		for index in range(imageSize):
+			PixelVal = rawData[index // 8] & (1 << (index % 8))
+			if (PixelVal != 0):
+				imageData[imageDataPointer] = 255
+				imageData[imageDataPointer + 1] = 255
+				imageData[imageDataPointer + 2] = 255
+			imageDataPointer += 3
+
+	return imageData
+
+def indexedToRGB888(rawData: np, imageType, colorTable: np, bitsperpixel, imageSize: int):
+	imageData = np.zeros(imageSize * 3, dtype=np.uint8)
+	imageDataPointer = 0
+	indexedCol = 0
+	# Treat 3bpp as 4bpp
+	if (bitsperpixel == 3):	bitsperpixel = 4
+
+	if (bitsperpixel > 4):
+		for index in range(len(rawData)):
+			imageData[imageDataPointer] = colorTable[rawData[indexedCol * 3]]
+			imageData[imageDataPointer + 1] = colorTable[rawData[indexedCol * 3 + 1]]
+			imageData[imageDataPointer + 2] = colorTable[rawData[indexedCol * 3 + 2]]
+			imageDataPointer += 3
+	elif (bitsperpixel == 4):
+		for index in range(imageSize):
+			indexedCol = rawData[index // 2] & ((1 << bitsperpixel) - 1)
+			rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+			imageData[imageDataPointer] = colorTable[indexedCol * 3]
+			imageData[imageDataPointer + 1] = colorTable[indexedCol * 3 + 1]
+			imageData[imageDataPointer + 2] = colorTable[indexedCol * 3 + 2]
+			imageDataPointer += 3
+	elif (bitsperpixel == 2):
+		for index in range(imageSize):
+			indexedCol = rawData[index // 4] & ((1 << bitsperpixel) - 1)
+			rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+			imageData[imageDataPointer] = colorTable[indexedCol * 3]
+			imageData[imageDataPointer + 1] = colorTable[indexedCol * 3 + 1]
+			imageData[imageDataPointer + 2] = colorTable[indexedCol * 3 + 2]
+			imageDataPointer += 3
+	elif (bitsperpixel == 1):
+		for index in range(imageSize):
+			indexedCol = rawData[index // 8] & ((1 << bitsperpixel) - 1)
+			rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+			imageData[imageDataPointer] = colorTable[indexedCol * 3]
+			imageData[imageDataPointer + 1] = colorTable[indexedCol * 3 + 1]
+			imageData[imageDataPointer + 2] = colorTable[indexedCol * 3 + 2]
+			imageDataPointer += 3
 
 	return imageData
 
@@ -697,10 +767,24 @@ def openPIF(path):
 		ImageDataRaw = decompressRLE(ImageDataRaw, BitsPerPixel, ImageWidth * ImageHeight)
 
 	# Image not RGB888? Convert to it
+	if (ImageType != PIFFormat.ImageTypeRGB888.value and (ImageType & 0xFF00) != PIFFormat.ImageTypeINDEXED.value):
+		ImageDataRaw = ConvertToRGB888(ImageDataRaw, ImageType, ImageWidth * ImageHeight)
+	elif ((ImageType & 0xFF00) == PIFFormat.ImageTypeINDEXED.value):
+		if (ImageType == PIFFormat.ImageTypeIND24.value):
+			ColTableColors = ColorTableSize // 3
+		elif (ImageType == PIFFormat.ImageTypeIND16.value):
+			ColTableColors = ColorTableSize // 2
+		else:
+			ColTableColors = ColorTableSize
+		ColorTable = np.zeros(ColorTableSize, dtype=np.uint8)
 
-	# Image even indexed? Convert that
-
-	# Color table not RGB888? Convert it
+		for i in range(ColorTableSize):
+			ColorTable[i] = PIFData[i + PIFFormat.ColorTableOffset.value]
+		
+		if (ImageType != PIFFormat.ImageTypeIND24.value):
+			ColorTable = ConvertToRGB888(ColorTable, ImageType, ColTableColors)
+		
+		ImageDataRaw = indexedToRGB888(ImageDataRaw, ImageType, ColorTable, BitsPerPixel, ImageWidth * ImageHeight)
 	
 	ImgDataPtr = 0
 	for imgH in range(ImageHeight):

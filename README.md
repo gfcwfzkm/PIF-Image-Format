@@ -48,10 +48,12 @@ All image files can be found in test_images\Lenna, together with some dithered a
 ### PIF Image Converter
 ( Required Python Version: 3.10 or higher, required pip packages: [Pillow](https://pillow.readthedocs.io/en/stable/), [PySimpleGUI](https://pysimplegui.readthedocs.io/en/latest/) and [NumPy](https://numpy.org/) )
 ![Image of the Tool](test_images/tool_screenshot.png)
-A basic tool that allows to save various image formats (.jpg/.bmp/.png) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
+
+A basic tool that allows to save various image formats (.jpg/.bmp/.png/.pif) to the .PIF Image Format. Within the program, various color settings can be applied with dithering, resizing the image as well as include the RLE compresison or not.
 ### PIF Image Viewer
 ( Required: .NET Framework or Mono )
 ![Image of the Viewer](test_images/viewer_screenshot.png)
+
 A small image viewer for the PIF image format. It supports all color modes and shows various informations about the image. PIF Images can be exported back to Bitmap (.bmp) files.
 ## C Library & Examples
 The library presented here is made to support the whole image format specifications as well as support any kind of display and storage medium. For indexed images, a indexed-colors-buffer is not required but recommended to speed up the operation. Otherwise the library will seek back and forth between the image data and the color table. Even a partial buffer is supported, to speed up the uses of commonly used colors from the table.
@@ -117,13 +119,15 @@ While this is a reference library to use the PIF Format, it doesn't mean one can
 |[Pascal PIF Format](https://github.com/dilshan/pascal-pif-library)|PIF Library for Lazarus / Delphi, written in Pascal
 
 ## Todo
-We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.
+~~We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.~~
+
+Currently all goals have been reached and the focus is on optimizing and bug-hunting. If you have ideas or suggestions, feel free to tell me them via mail or by creating an issue.
  - [x] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
 	- [x] Saving as .PIF
 	- [x] Custom (Indexed) options
-	- [ ] PIF Image Viewer functionality
+	- [x] PIF Image Viewer functionality
  - [x] Image viewer
 	- [x] Display the image
 	- [x] Show details and stats
