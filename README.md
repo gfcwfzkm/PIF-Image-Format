@@ -122,6 +122,9 @@ While this is a reference library to use the PIF Format, it doesn't mean one can
 ~~We still have some steps ahead of us before this project can be considered finished. Here a rough overview of the things that are already done or that are still missing.~~
 
 Currently all goals have been reached and the focus is on optimizing and bug-hunting. If you have ideas or suggestions, feel free to tell me them via mail or by creating an issue.
+
+The next goal for me is to do a similar implementation for animated stuff (as in an embedded-systems-friendly GIF format). 
+Another idea is, to add transparency to the current image format - but that is rather low on my todo list.
  - [x] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
