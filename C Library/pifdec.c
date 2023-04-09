@@ -28,9 +28,9 @@
 
 
 // CGA / 16 Color palette generated with the following formula:
-// red	 = 2/3�(colorNumber & 4)/4 + 1/3�(colorNumber & 8)/8 * 255
-// green = 2/3�(colorNumber & 2)/2 + 1/3�(colorNumber & 8)/8 * 255
-// blue	 = 2/3�(colorNumber & 1)/1 + 1/3�(colorNumber & 8)/8 * 255
+// red	 = 255 * (2/3 * (colorNumber & 4)/4 + 1/3 * (colorNumber & 8)/8 )
+// green = 255 * (2/3 * (colorNumber & 2)/2 + 1/3 * (colorNumber & 8)/8 )
+// blue	 = 255 * (2/3 * (colorNumber & 1)/1 + 1/3 * (colorNumber & 8)/8 )
 #if defined(PIF_RGB16C_RGB888)
 const _PMEMX uint8_t color_table_16C[48] _PRGM = {
 	0, 0, 0,		// black
@@ -416,14 +416,14 @@ pifRESULT pif_display(pifHANDLE_t *p_PIF, uint16_t x0, uint16_t y0)
 		{
 			// Allow partial buffering by only buffer the first x colors that the array can fit in
 			// Only buffer whole colors (RGB332, RGB565 or RGB888), not partially (clipping RGB888 into a 2-Byte buffer, for example)
-			for (uint8_t colorCounter = 0; (colorCounter + ColorTablePixelSize - 1) < p_PIF->pifDecoder->colTableBufLen; colorCounter++)
+			for (uint8_t colorByteCnt = 0; (colorByteCnt + ColorTablePixelSize - 1) < p_PIF->pifDecoder->colTableBufLen; colorByteCnt++)
 			{
-				if (colorCounter >= (p_PIF->pifInfo.colTableSize * ColorTablePixelSize))
+				if (colorByteCnt >= (p_PIF->pifInfo.colTableSize))
 				{
 					// No more colors to read from the color table
 					break;
 				}
-				p_PIF->pifDecoder->colTableBuf[colorCounter] = _read8(p_PIF->pifFileHandler);
+				p_PIF->pifDecoder->colTableBuf[colorByteCnt] = _read8(p_PIF->pifFileHandler);
 			}
 		}
 	}

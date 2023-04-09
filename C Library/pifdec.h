@@ -1,13 +1,15 @@
-/*
- * pifdec.h
+/**
+ * @file pifdec.h
  *
- * PIF Decoder Library
+ * @brief PIF Decoder Library
  * Copyright (c) 2022 gfcwfzkm ( gfcwfzkm@protonmail.com )
  * License: GNU Lesser General Public License, Version 2.1
  * 		http://www.gnu.org/licenses/lgpl-2.1.html
  *
- * Created: 01.04.2022
- *  Author: gfcwfzkm
+ * @date	01.04.2022
+ * @author	gfcwfzkm
+ * @version	1
+ * - First version with partial doxygen documentation
  */ 
 
 
@@ -17,34 +19,39 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-/* Select the RGB16 / Monochrome Color Table Format 
- * The Color Table is saved in the flash memory
- */
+#define PIF_VERSION_NUMBER	0x0001
+
+/** Choose to embed a RGB888 lookup table for the RGB16C colors. */
 //#define	PIF_RGB16C_RGB888
+/** Choose to embed a RGB565 lookup table for the RGB16C colors */
 #define PIF_RGB16C_RGB565
+/** Choose to embed a RGB332 lookup table for the RGB16C colors */
 //#define PIF_RGB16C_RGB332
 
+/** States wether the operation was successful or if (and what) error occured */
 typedef enum {
-	PIF_RESULT_OK,			// Operation was successful
-	PIF_RESULT_IOERR,		// I/O File error
-	PIF_RESULT_DRAWERR,		// Drawing Routines error
-	PIF_RESULT_FORMATERR	// PIF File Format error
+	PIF_RESULT_OK,			/**< Operation was successful */
+	PIF_RESULT_IOERR,		/**<  I/O File error */
+	PIF_RESULT_DRAWERR,		/**<  Drawing Routines error */
+	PIF_RESULT_FORMATERR	/**<  PIF File Format error */
 }pifRESULT;
 
+/** Image Type of the .PIF image */
 typedef enum {
-	PIF_TYPE_RGB888 = 0,	// RGB888
-	PIF_TYPE_RGB565 = 1,	// RGB565
-	PIF_TYPE_RGB332 = 2,	// RGB332
-	PIF_TYPE_RGB16C = 3,	// RGB16C
-	PIF_TYPE_BW		= 4,	// BW
-	PIF_TYPE_IND8	= 5,	// IND8
-	PIF_TYPE_IND16	= 6,	// IND16
-	PIF_TYPE_IND24	= 7		// IND24
+	PIF_TYPE_RGB888 = 0,	/**< RGB888, 3 Bytes per Pixel */
+	PIF_TYPE_RGB565 = 1,	/**< RGB565, 2 Bytes per Pixel */
+	PIF_TYPE_RGB332 = 2,	/**< RGB332, 1 Byte per Pixel */
+	PIF_TYPE_RGB16C = 3,	/**< RGB16C, 4 Bits per Pixel */
+	PIF_TYPE_BW		= 4,	/**< BW, 1 Bit per Pixel */
+	PIF_TYPE_IND8	= 5,	/**< IND8, 1 Byte per Color */
+	PIF_TYPE_IND16	= 6,	/**< IND16, 2 Bytes per Color */
+	PIF_TYPE_IND24	= 7		/**< IND24, 3 Bytes per Color */
 }pifImageType;
 
+/** Selects the conversion type from one to the other */
 typedef enum {
-	PIF_CONV_ACCURATE = 0,	// Accurate conversion
-	PIF_CONV_FAST = 1		// Fast conversion
+	PIF_CONV_ACCURATE = 0,	/**< Accurate conversion */
+	PIF_CONV_FAST = 1		/**< Fast conversion */
 }pifColorConversion;
 
 typedef enum {
@@ -65,7 +72,7 @@ typedef struct {
 	uint16_t imageWidth;		// Image Width in Pixel
 	uint16_t imageHeight;		// Image Height in Pixel
 	uint32_t imageSize;			// Image Data Size in Bytes
-	uint16_t colTableSize;		// Color Table Size in Entries
+	uint16_t colTableSize;		// Color Table Size in Bytes
 	pifCompression compression:4;// RLE Compression enabled or not
 	uint16_t startX;			// Display Start Positon X
 	uint16_t startY;			// Display Start Position Y
