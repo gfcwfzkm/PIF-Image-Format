@@ -17,7 +17,8 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
    - Indexed - Custom Pixel bitwidth, using a RGB332, RGB565 or RGB888 color table
  - Basic Compression (RLE)
  - Allows to draw on any kind of display, including exotic ones like grayscale or e-ink displays
- - (New!) File format now supported within [ImHex](https://github.com/WerWolv/ImHex "A great, versatile Hex Editor")
+ - File format now supported within [ImHex](https://github.com/WerWolv/ImHex "A great, versatile Hex Editor")
+ - (New!) File format now supported within [Kaitai Struct](http://kaitai.io/ "A new way to develop parsers for binary structures")
 
 ## Why another Image Format?
 I know, I know, there are way too many image standards and I'm sure there is a xkcd comic panel about it already. On the one side this project is an excuse for me to take a deeper look into python and figure this programming language out, on the otherside I have gotten frustrated with the options when one wants to load images on a display from a microcontroller. I've encountered always the same problems there:
