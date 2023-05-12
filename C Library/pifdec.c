@@ -280,7 +280,7 @@ pifRESULT pif_createIO(pifIO_t *p_fileIO, PIF_OPEN_FILE *f_openFile, PIF_CLOSE_F
 	p_fileIO->close = f_closeFile;
 	p_fileIO->readByte = f_readFile;
 	p_fileIO->seekPos = f_seekFile;
-	if ((f_openFile == 0) || (f_closeFile == NULL) || (f_readFile == NULL) || (f_seekFile == NULL))
+	if ((f_openFile == NULL) || (f_readFile == NULL) || (f_seekFile == NULL))
 	{
 		return PIF_RESULT_IOERR;
 	}
@@ -575,7 +575,10 @@ pifRESULT pif_close(pifHANDLE_t *p_PIF)
 {
 	if (p_PIF->pifFileHandler->close != NULL)
 	{
-		if (p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle)))	return PIF_RESULT_IOERR;
+		if (p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle)))
+		{
+			return PIF_RESULT_IOERR;
+		}
 	}
 	return PIF_RESULT_OK;
 }
