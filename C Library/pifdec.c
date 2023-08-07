@@ -306,7 +306,7 @@ pifRESULT pif_open(pifHANDLE_t *p_PIF, const char *pc_path)
 	p_PIF->pifFileHandler->fileHandle = p_PIF->pifFileHandler->open(pc_path, &results);
 	if ((results != 0) || (p_PIF->pifFileHandler->readByte == NULL))
 	{
-		if (p_PIF->pifFileHandler->close != NULL)	p_PIF->pifFileHandler->close(p_PIF->pifFileHandler->fileHandle);
+		if (p_PIF->pifFileHandler->close != NULL && p_PIF->pifFileHandler->fileHandle != NULL)	p_PIF->pifFileHandler->close(p_PIF->pifFileHandler->fileHandle);
 		return PIF_RESULT_IOERR;
 	}
 	
@@ -575,7 +575,7 @@ pifRESULT pif_close(pifHANDLE_t *p_PIF)
 {
 	if (p_PIF->pifFileHandler->close != NULL)
 	{
-		if (p_PIF->pifFileHandler->close(&(p_PIF->pifFileHandler->fileHandle)))
+		if (p_PIF->pifFileHandler->close(p_PIF->pifFileHandler->fileHandle))
 		{
 			return PIF_RESULT_IOERR;
 		}

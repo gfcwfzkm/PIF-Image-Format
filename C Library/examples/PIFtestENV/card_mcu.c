@@ -346,13 +346,10 @@ int8_t ImageClose(void *pHandle)
 {
 	FRESULT res = f_close(pHandle);
 	gs_log_f(GLOG_INFO, "[PIF] Closing file... %s! Code %"PRIu8, (res == FR_OK) ? "OK" : "FAILED", res);
-	// f_close returns an error when a read-only file is opened, as it is not needed, thus lets discard this error:
-	/*
 	if (res != FR_OK)
 	{
 		return 1;
 	}
-	*/
 	return 0;
 }
 
