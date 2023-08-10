@@ -1,4 +1,6 @@
 from enum import Enum   # Python 3.10 or higher requried
+import numpy as np		# pip install numpy
+from PIL import Image
 
 class PIF():
 	"""
@@ -24,6 +26,8 @@ class PIF():
 		255, 255, 255	# white
 	]
 
+	COLORTABLE_OFFSET = 28
+
 	class ConversionType(Enum):
 		UNDEFINED	= 0
 		INDEXED332	= 1
@@ -37,7 +41,7 @@ class PIF():
 
 	class CompressionType(Enum):
 		NO_COMPRESSION 	= 0
-		RLE_COMPRESSION = 1
+		RLE_COMPRESSION = 0x7DDE
 
 	class PIFType(Enum):
 		ImageTypeRGB888 = 0x433C
@@ -64,38 +68,257 @@ class PIF():
 
 	class PIFInfo():
 		def __init__(self) -> None:
-			self.fileSize = None
-			self.imageOffset = None
+			self.fileSize = None	# integer
+			self.imageOffset = None	# integer
 			self.imageType = PIF.PIFType.ImageTypeUnknown
-			self.bitsPetPixel = None
-			self.imageWidth = None
-			self.imageHeigt = None
-			self.imageSize = None
-			self.colTableSize = None
+			self.bitsPerPixel = None # integer
+			self.imageWidth = None	# integer
+			self.imageHeigt = None	# integer
+			self.imageSize = None	# integer
+			self.colorTableSize = None	# integer
+			self.colorTable = None	# numpy.ndarray, 1D
 			self.compression = PIF.CompressionType.NO_COMPRESSION
+			self.rawImageData = None # numpy.ndarray, 1D
 
 	def __init__(self) -> None:
-		self.info = self.PIFInfo()
-		self.pifByteArray = None
 		pass
 
-	def decode(PIFdata: bytearray) -> None | Exception:
+	def __decomplressRLE(rleData: np.ndarray, bitsPerPixel: int, imageSize: int) -> np.ndarray:
+		rleInstruction = 0
+		imageData = np.zeros(3, dtype=np.int8)
+		imagePointer = 0
+		dataCounter = 0
+
+		if (bitsPerPixel == 24):
+			uncompressedData = np.zeros(imageSize * 3, dtype=np.uint8)
+		elif (bitsPerPixel == 16):
+			uncompressedData = np.zeros(imageSize * 2, dtype=np.uint8)
+		elif (bitsPerPixel == 4):
+			uncompressedData = np.zeros(imageSize // 2, dtype=np.uint8)
+		else:
+			uncompressedData = np.zeros(imageSize, dtype=np.uint8)
+		
+		while (dataCounter < len(rleData)):
+			# Load byte from RLE-compressed image data array
+			# and handle it depending on the content of
+			# "rleInstruction"...
+			imageData[0] = rleData[dataCounter]
+
+			#Check RLE Instruction
+			if (rleInstruction > 0):
+				# RLE Instruction is positive;
+				# Repeat the image data "rleInstruction" amount of times
+
+				# For two or three byte image data: preload extra data
+				if (bitsPerPixel >= 16):
+					dataCounter += 1
+					imageData[1] = rleData[dataCounter]
+				if (bitsPerPixel == 24):
+					dataCounter += 1
+					imageData[2] = rleData[dataCounter]
+				
+				while (rleInstruction > 0):
+					uncompressedData[imagePointer] = imageData[0]
+					imagePointer += 1
+					rleInstruction -= 1
+					if (bitsPerPixel >= 16):
+						uncompressedData[imagePointer] = imageData[1]
+						imagePointer += 1
+					if (bitsPerPixel == 24):
+						uncompressedData[imagePointer] = imageData[2]
+						imagePointer += 1
+			
+			elif (rleInstruction < 0):
+				# RLE Instruction is negative; The next (rleInstruction * -1) bytes are uncompressed
+				uncompressedData[imagePointer] = imageData[0]
+				imagePointer += 1
+				rleInstruction += 1
+				if (bitsPerPixel >= 16):
+					dataCounter += 1
+					uncompressedData[imagePointer] = rleData[dataCounter]
+					imagePointer += 1
+				if (bitsPerPixel == 24):
+					dataCounter += 1
+					uncompressedData[imagePointer] = rleData[dataCounter]
+					imagePointer += 1
+			
+			else:
+				# RLE Instruction is 0: The next byte is a RLE Instruction
+				rleInstruction = imageData[0]
+			
+			dataCounter += 1
+		
+		# Return the decompressed image data
+		return uncompressedData
+	
+	def __convertToRGB888(rawData: np.ndarray, imageSize: int, imageInfo: PIFInfo) -> np.ndarray:
+		imageData = np.zeros(imageSize * 3, dtype=np.uint8)
+		imageDataPointer = 0
+
+		if (imageInfo.imageType == PIF.PIFType.ImageTypeRGB565) or (imageInfo.imageType == PIF.PIFType.ImageTypeIND16):
+			for index in range(0, len(rawData), 2):
+				# Convert RGB565 to RGB888 accurately as possible
+				imageData[imageDataPointer] = round(((rawData[index] & 0x1F) << 3) * 1.028225806451613)
+				imageData[imageDataPointer + 1] = round(((rawData[index] & 0xE0) >> 3 | (rawData[index + 1] & 0x07) << 5) * 1.011904762)
+				imageData[imageDataPointer + 2] = round((rawData[index + 1] & 0xF8) * 1.028225806451613)
+				imageDataPointer += 3
+		elif ((imageInfo.imageType == PIF.PIFType.ImageTypeRGB332) or (imageInfo.imageType  == PIF.PIFType.ImageTypeIND8)):
+			for index in range(len(rawData)):
+				# Convert RGB332 to RGB888
+				imageData[imageDataPointer] = round(((rawData[index] & 0x3) << 6) * 1.328125)
+				imageData[imageDataPointer + 1] = round(((rawData[index] & 0x1C) << 3) * 1.138392857)
+				imageData[imageDataPointer + 2] = round((rawData[index] & 0xE0) * 1.138392857)
+				imageDataPointer += 3
+		elif (imageInfo.imageType == PIF.PIFType.ImageTypeRGB16C):
+			for index in range(imageSize):
+				# Convert from RGB16 to RGB888
+				colorValue = (rawData[index // 2] & (0x0F << ((index % 2) * 4))) >> ((index % 2) * 4)
+				imageData[imageDataPointer] = PIF.COLORTABLE_16C[colorValue * 3 + 2]
+				imageData[imageDataPointer + 1] = PIF.COLORTABLE_16C[colorValue * 3 + 1]
+				imageData[imageDataPointer + 2] = PIF.COLORTABLE_16C[colorValue * 3]
+				imageDataPointer += 3
+		elif (imageInfo.imageType == PIF.PIFType.ImageTypeBLWH):
+			for index in range(imageSize):
+				# Convert from Monochrome / BlackWhite to RGB888
+				PixelVal = rawData[index // 8] & (1 << (index % 8))
+				if (PixelVal != 0):
+					imageData[imageDataPointer] = 255
+					imageData[imageDataPointer + 1] = 255
+					imageData[imageDataPointer + 2] = 255
+				imageDataPointer += 3
+
+		return imageData
+
+	def __indexedToRGB888(rawData: np.ndarray, imageInfo: PIFInfo) -> np.ndarray:
+		bitsperpixel = imageInfo.bitsPerPixel
+		imageSize = imageInfo.imageHeigt * imageInfo.imageWidth
+		imageData = np.zeros(imageSize * 3, dtype=np.uint8)
+		imageDataPointer = 0
+		indexedCol = 0
+		# Treat 3bpp as 4bpp
+		if (bitsperpixel == 3):	bitsperpixel = 4
+
+		if (bitsperpixel > 4):
+			for index in range(len(rawData)):
+				imageData[imageDataPointer] = imageInfo.colorTable[rawData[indexedCol * 3]]
+				imageData[imageDataPointer + 1] = imageInfo.colorTable[rawData[indexedCol * 3 + 1]]
+				imageData[imageDataPointer + 2] = imageInfo.colorTable[rawData[indexedCol * 3 + 2]]
+				imageDataPointer += 3
+		elif (bitsperpixel == 4):
+			for index in range(imageSize):
+				indexedCol = rawData[index // 2] & ((1 << bitsperpixel) - 1)
+				rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+				imageData[imageDataPointer] = imageInfo.colorTable[indexedCol * 3]
+				imageData[imageDataPointer + 1] = imageInfo.colorTable[indexedCol * 3 + 1]
+				imageData[imageDataPointer + 2] = imageInfo.colorTable[indexedCol * 3 + 2]
+				imageDataPointer += 3
+		elif (bitsperpixel == 2):
+			for index in range(imageSize):
+				indexedCol = rawData[index // 4] & ((1 << bitsperpixel) - 1)
+				rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+				imageData[imageDataPointer] = imageInfo.colorTable[indexedCol * 3]
+				imageData[imageDataPointer + 1] = imageInfo.colorTable[indexedCol * 3 + 1]
+				imageData[imageDataPointer + 2] = imageInfo.colorTable[indexedCol * 3 + 2]
+				imageDataPointer += 3
+		elif (bitsperpixel == 1):
+			for index in range(imageSize):
+				indexedCol = rawData[index // 8] & ((1 << bitsperpixel) - 1)
+				rawData[index // (8 // bitsperpixel)] >>= bitsperpixel
+				imageData[imageDataPointer] = imageInfo.colorTable[indexedCol * 3]
+				imageData[imageDataPointer + 1] = imageInfo.colorTable[indexedCol * 3 + 1]
+				imageData[imageDataPointer + 2] = imageInfo.colorTable[indexedCol * 3 + 2]
+				imageDataPointer += 3
+
+		return imageData
+
+	def decode(PIFdata: np.ndarray) -> (np.ndarray, PIFInfo):
 		"""Decodes a raw PIF bytearray
 
 		Decodes the PIF image header and image data itself, storing
 		it internally in an RGB888 bytearray
 
 		Parameters:
-			PIFData : bytearray, mandatory
+			PIFData : numpy.ndarray, mandatory
 				Binary PIF data
 		
 		Returns:
-			None or Exception
-				Returns nothing if the operation was performed without an error,
-				otherwise it will return an Exception message
+			(H x W x 3) numpy array
+				An numpy array that with the shape (H, W, 3), which should
+				allow easy integration into image libraries like pillow
 		
 		"""
-		return -1
+		# Header alone is 28 Bytes, thus reject data smaller than 28 Bytes
+		if (PIFdata.size < PIF.COLORTABLE_OFFSET):
+			raise "Invalid PIF header, file too small"
+
+		# Valid PIF header starts with the string "PIF\0"
+		if (PIFdata[0] != 0x50 or PIFdata[1] != 0x49 or PIFdata[2] != 0x46 or PIFdata[3] != 0x00):
+			raise "Invalid PIF header, magic bytes not matching"
+		
+		imageInfo = PIF.PIFInfo()
+
+		# So far so good, trying to parse in the data
+		imageInfo.fileSize = PIFdata.size
+		imageInfo.imageOffset = PIFdata[8] + (PIFdata[9] << 8) + (PIFdata[10] << 16) + (PIFdata[11] << 24)
+		imageInfo.imageType = PIFdata[12] + (PIFdata[13] << 8)
+		imageInfo.bitsPerPixel = PIFdata[14] + (PIFdata[15] << 8)
+		imageInfo.imageWidth = PIFdata[16] + (PIFdata[17] << 8)
+		imageInfo.imageHeigt = PIFdata[18] + (PIFdata[19] << 8)
+		imageInfo.imageSize = PIFdata[20] + (PIFdata[21] << 8) + (PIFdata[22] << 16) + (PIFdata[23] << 24)
+		imageInfo.colorTableSize = PIFdata[24] + (PIFdata[25] << 8)
+		imageInfo.compression = PIFdata[26] + (PIFdata[27] << 8)
+
+		# Sanity-Check some things, python's enums should raise error if not found
+		imageInfo.imageType = PIF.PIFType(imageInfo.imageType)
+		imageInfo.compression = PIF.CompressionType(imageInfo.compression)
+			
+		# Raw image data to process
+		imageInfo.rawImageData = np.copy(PIFdata[imageInfo.imageOffset : imageInfo.imageOffset + imageInfo.imageSize])
+
+		# Check if the image is compressed
+		if (imageInfo.compression == PIF.CompressionType.RLE_COMPRESSION):
+			# Decompress the image data first
+			imageInfo.rawImageData = PIF.__decomplressRLE(imageInfo.rawImageData, imageInfo.bitsPerPixel, imageInfo.imageWidth * imageInfo.imageHeigt)
+		
+		# Need a pure RGB888 image for further processing...
+		if (imageInfo.imageType != PIF.PIFType.ImageTypeRGB888) and ((imageInfo.imageType.value & 0xFF00) != (PIF.PIFType.ImageTypeIND16.value & 0xFF00)):
+			# Image not RGB888 AND not indexed? Convert it to RGB888
+			imageInfo.rawImageData = PIF.__convertToRGB888(imageInfo.rawImageData, imageInfo.imageHeigt * imageInfo.imageWidth, imageInfo)
+		elif ((imageInfo.imageType.value & 0xFF00) == (PIF.PIFType.ImageTypeIND8.value & 0xFF00)):
+			# Image is Indexed!
+			# Read in the color table values 
+			imageInfo.colorTable = np.copy(PIFdata[PIF.COLORTABLE_OFFSET : PIF.COLORTABLE_OFFSET + imageInfo.colorTableSize])
+			
+			# Convert colortable to RGB888, if it's not
+			if (imageInfo.imageType != PIF.PIFType.ImageTypeIND24):
+				if (imageInfo.imageType == PIF.PIFType.ImageTypeIND16):
+					ColTableColors = imageInfo.colorTableSize // 2
+				else:
+					ColTableColors = imageInfo.colorTableSize
+				imageInfo.colorTable = PIF.__convertToRGB888(imageInfo.colorTable, ColTableColors, imageInfo)
+
+			# Finally convert the indexed image data to an pure RGB888 array
+			imageInfo.rawImageData = PIF.__indexedToRGB888(imageInfo.rawImageData, imageInfo)
+				
+		# Converting to HxWx3 (mostly for easy pillow integration)
+		rgbImage = np.reshape(imageInfo.rawImageData, (imageInfo.imageHeigt, imageInfo.imageWidth, -3))
+
+		# Since the data is little endian, rgbImage is actually in an BGR format!
+		# So it has to be fixed...
+		rgbImage = rgbImage[:, :, ::-1]
+
+		return (rgbImage, imageInfo)
 	
-	def encode(RGB888: bytearray, imageType: ConversionType, compression: CompressionType) -> None | Exception:
-		return -1
+	def encodeFile(RGB888: np.ndarray, imageType: ConversionType, compression: CompressionType) -> (np.ndarray, PIFInfo):
+		pass
+	
+	def encodePreview(RGB888: np.ndarray, imageType: ConversionType) -> np.ndarray:
+		pass
+
+"""
+Decode Test
+a = np.fromfile('/root/Programming/PIF-Image-Format/test_images/Lenna/Lenna_RGB888.pif', dtype=np.uint8)
+image, info = PIF.decode(a)
+img = Image.fromarray(image, 'RGB')
+img.save('te123st.bmp')
+"""
