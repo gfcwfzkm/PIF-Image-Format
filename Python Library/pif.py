@@ -1,6 +1,6 @@
 from enum import Enum   # Python 3.10 or higher requried
 import numpy as np		# pip install numpy
-from PIL import Image
+import PIL.Image		# pip install pillow
 
 class PIF():
 	"""
@@ -231,7 +231,7 @@ class PIF():
 
 		return imageData
 
-	def decode(PIFdata: np.ndarray) -> (np.ndarray, PIFInfo):
+	def decode(PIFdata: np.ndarray) -> (PIL.Image.Image, PIFInfo):
 		"""Decodes a raw PIF bytearray
 
 		Decodes the PIF image header and image data itself, storing
@@ -307,13 +307,46 @@ class PIF():
 		# So it has to be fixed...
 		rgbImage = rgbImage[:, :, ::-1]
 
-		return (rgbImage, imageInfo)
+		# Return a Pillow image as well as the header / file information
+		return (PIL.Image.fromarray(rgbImage, 'RGB'), imageInfo)
 	
-	def encodeFile(RGB888: np.ndarray, imageType: ConversionType, compression: CompressionType) -> (np.ndarray, PIFInfo):
+	def __convertImage(image: PIL.Image.Image, imageType: ConversionType, IndexedColorTable: (np.ndarray, int) | None, dithering: bool, internal: bool) -> PIL.Image.Image:
+		
+		match imageType:
+			case PIF.PIFType.ImageTypeRGB888:
+				imageToReturn = image.copy()
+			case PIF.PIFType.ImageTypeRGB565:
+				# Get the image as a numpy array
+				imageData = np.array(image, dtype=np.uint8)
+				# Create an array of the same size/dimensions with the logical 
+				# mask for each color
+				imageMask = np.tile(np.array([0xF8, 0xFC, 0xF8], dtype=np.uint8), (image.height, image.width, 1))
+				# Logic-AND the data with the mask
+				imageData = np.bitwise_and(imageData, imageMask)
+				
+				# If the image is used for the preview, we have to fix the colors a little...
+				if (internal == True):
+					multMask = np.tile(np.array([1.028225806, 1.011904762, 1.028225806], dtype=np.float64), (image.height, image.width, 1))
+					imageData = np.rint(np.multiply(imageData, multMask, dtype=np.float32)).astype(dtype=np.uint8)
+
+				# Convert it back to a PIL image
+				imageToReturn = PIL.Image.fromarray(imageData, 'RGB')
+			case PIF.PIFType.ImageTypeRGB332:
+				imageMask
+				maskImage = PIL.Image.new('P', (16,16))
+				
+					
+			case _:
+				raise f'Unknown format type: {imageType}'
+		
+		return imageToReturn
+
+	def encodeFile(image: PIL.Image.Image, imageType: ConversionType, compression: CompressionType, IndexedColorTable: (np.ndarray, int) | None, dithering = False) -> (np.ndarray, PIFInfo):
 		pass
 	
-	def encodePreview(RGB888: np.ndarray, imageType: ConversionType) -> np.ndarray:
-		pass
+	def encodePreview(image: PIL.Image.Image, imageType: ConversionType, IndexedColorTable: (np.ndarray, int) | None, dithering = False) -> PIL.Image.Image:
+		imageToReturn = PIF.__convertImage(image, imageType, IndexedColorTable, dithering, internal=False)
+		return imageToReturn
 
 """
 Decode Test
