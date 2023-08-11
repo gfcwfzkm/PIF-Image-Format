@@ -28,17 +28,6 @@ class PIF():
 
 	COLORTABLE_OFFSET = 28
 
-	class ConversionType(Enum):
-		UNDEFINED	= 0
-		INDEXED332	= 1
-		INDEXED565	= 2
-		INDEXED888	= 3
-		MONOCHROME 	= 4
-		RGB16C		= 5
-		RGB332 		= 6
-		RGB565 		= 7
-		RGB888 		= 8
-
 	class CompressionType(Enum):
 		NO_COMPRESSION 	= 0
 		RLE_COMPRESSION = 0x7DDE
@@ -52,9 +41,6 @@ class PIF():
 		ImageTypeIND24  = 0x4952
 		ImageTypeIND16  = 0x4947
 		ImageTypeIND8   = 0x4942
-		ImageTypeINDEXED = 0x4900
-		ImageTypeUnknown = 0xFFFF
-		ColorTableOffset = 28
 
 	class InvalidHeader(Exception):
 		"""Exception raised if file header is not valid
@@ -70,7 +56,7 @@ class PIF():
 		def __init__(self) -> None:
 			self.fileSize = None	# integer
 			self.imageOffset = None	# integer
-			self.imageType = PIF.PIFType.ImageTypeUnknown
+			self.imageType = None	# PIFType
 			self.bitsPerPixel = None # integer
 			self.imageWidth = None	# integer
 			self.imageHeigt = None	# integer
@@ -231,21 +217,19 @@ class PIF():
 
 		return imageData
 
-	def decode(PIFdata: np.ndarray) -> (PIL.Image.Image, PIFInfo):
+	def decode(PIFdata: np.ndarray(shape=(int)),dtype=np.uint8) -> (PIL.Image.Image, PIFInfo):
 		"""Decodes a raw PIF bytearray
 
-		Decodes the PIF image header and image data itself, storing
-		it internally in an RGB888 bytearray
+		Decodes the PIF image header and image data itself and returns it
 
 		Parameters:
 			PIFData : numpy.ndarray, mandatory
 				Binary PIF data
 		
 		Returns:
-			(H x W x 3) numpy array
-				An numpy array that with the shape (H, W, 3), which should
-				allow easy integration into image libraries like pillow
-		
+			(PIL.Image.Image, PIFInfo) Tuple:
+				Returns a tuple containing the read image as pillow image, as well
+				as the header information, color table and raw data within PIFInfo.
 		"""
 		# Header alone is 28 Bytes, thus reject data smaller than 28 Bytes
 		if (PIFdata.size < PIF.COLORTABLE_OFFSET):
@@ -310,8 +294,7 @@ class PIF():
 		# Return a Pillow image as well as the header / file information
 		return (PIL.Image.fromarray(rgbImage, 'RGB'), imageInfo)
 	
-	def __convertImage(image: PIL.Image.Image, imageType: ConversionType, IndexedColorTable: (np.ndarray, int) | None, dithering: bool, internal: bool) -> PIL.Image.Image:
-		
+	def __convertImage(image: PIL.Image.Image, imageType: PIFType, IndexedColorTable: None, dithering: bool, internal: bool) -> PIL.Image.Image:
 		match imageType:
 			case PIF.PIFType.ImageTypeRGB888:
 				imageToReturn = image.copy()
@@ -325,26 +308,48 @@ class PIF():
 				imageData = np.bitwise_and(imageData, imageMask)
 				
 				# If the image is used for the preview, we have to fix the colors a little...
-				if (internal == True):
+				if (internal == False):
+					# The idea is to represent the colors accurately. RGB565 white would be fully white on a RGB565 display,
+					# but lightly gray on a RGB888 display. To compensate that, a factor is multiplied to all values...
 					multMask = np.tile(np.array([1.028225806, 1.011904762, 1.028225806], dtype=np.float64), (image.height, image.width, 1))
 					imageData = np.rint(np.multiply(imageData, multMask, dtype=np.float32)).astype(dtype=np.uint8)
 
 				# Convert it back to a PIL image
 				imageToReturn = PIL.Image.fromarray(imageData, 'RGB')
 			case PIF.PIFType.ImageTypeRGB332:
-				imageMask
+				# Placeholder image to contain the new color palette
 				maskImage = PIL.Image.new('P', (16,16))
+				# Create an [R,G,B] array with 256 entries
+				maskData = np.stack((np.arange(256, dtype=np.uint8), np.arange(256, dtype=np.uint8), np.arange(256, dtype=np.uint8)), axis=1, dtype=np.uint8)
+				# Create the masking array to cut off the RGB888 to RGB332-ish colors
+				# Red = Color & 0xE0; Green = Color & 0x1C; Blue = Color & 0x03
+				maskRGB332 = np.tile(np.array([0xE0, 0x1C, 0x03], dtype=np.uint8), (256, 1))
+				maskData = np.bitwise_and(maskData, maskRGB332)
+				# Green and blue are located too low, gotta shift them up with an... exactly, another array!
+				maskRGB332 = np.tile(np.array([0, 3, 6], dtype=np.uint8), (256, 1))
+				maskData = np.left_shift(maskData, maskRGB332, dtype=np.uint8)
+
+				# Similar as with RGB565, apply an mask for image previews to display the colors
+				# precisely on a RGB888 display / image.
+				if (internal == False):
+					maskRGB332 = np.tile(np.array([1.138392857, 1.138392857, 1.328125], dtype=np.float64), (256,1))
+					maskData = np.rint(np.multiply(maskData, maskRGB332, dtype=np.float32)).astype(dtype=np.uint8)
 				
-					
+				# Fuck is numpy great! Flatten the [256,3] Array to one long, continous 1D array
+				maskData = maskData.flatten()
+				# Apply the color palette into the dummy mask image
+				maskImage.putpalette(maskData.tolist())
+				# Apply the dummy mask image palette into the actual image, apply optional dithering
+				imageToReturn = image.quantize(256, palette=maskImage, dither=dithering)
 			case _:
 				raise f'Unknown format type: {imageType}'
 		
 		return imageToReturn
 
-	def encodeFile(image: PIL.Image.Image, imageType: ConversionType, compression: CompressionType, IndexedColorTable: (np.ndarray, int) | None, dithering = False) -> (np.ndarray, PIFInfo):
-		pass
+	#def encodeFile(image: PIL.Image.Image, imageType: ConversionType, compression: CompressionType, IndexedColorTable: (np.ndarray, int) | None, dithering = False) -> (np.ndarray, PIFInfo):
+	#	pass
 	
-	def encodePreview(image: PIL.Image.Image, imageType: ConversionType, IndexedColorTable: (np.ndarray, int) | None, dithering = False) -> PIL.Image.Image:
+	def encodePreview(image: PIL.Image.Image, imageType: PIFType, IndexedColorTable: None | tuple[np.ndarray(shape=(any,3),dtype=np.uint8), int], dithering: bool = False) -> PIL.Image.Image:
 		imageToReturn = PIF.__convertImage(image, imageType, IndexedColorTable, dithering, internal=False)
 		return imageToReturn
 
@@ -355,3 +360,7 @@ image, info = PIF.decode(a)
 img = Image.fromarray(image, 'RGB')
 img.save('te123st.bmp')
 """
+
+a = PIL.Image.open('/root/Programming/PIF-Image-Format/test_images/Lenna/Lenna.bmp')
+b = PIF.encodePreview(a, PIF.PIFType.ImageTypeRGB332, None)
+b.save('test.bmp')
