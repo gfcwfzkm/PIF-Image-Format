@@ -19,6 +19,7 @@ The Portable Image Format (PIF) is a basic, bitmap-like image format with the fo
  - Basic Compression (RLE)
  - Allows to draw on any kind of display, including exotic ones like grayscale or e-ink displays
  - File format now supported within [ImHex](https://github.com/WerWolv/ImHex "A great, versatile Hex Editor") and [Kaitai Struct](http://kaitai.io/ "A new way to develop parsers for binary structures")
+ - (New!) PIF Python library to decode and encode PIF images
 
 ## Why another Image Format?
 I know, I know, there are way too many image standards and I'm sure there is a xkcd comic panel about it already. On the one side this project is an excuse for me to take a deeper look into python and figure this programming language out, on the otherside I have gotten frustrated with the options when one wants to load images on a display from a microcontroller. I've encountered always the same problems there:
@@ -124,7 +125,7 @@ While this is a reference library to use the PIF Format, it doesn't mean one can
 Currently most goals have been reached and the focus is on optimizing and bug-hunting. If you have ideas or suggestions, feel free to tell me them via mail or by creating an issue.
 
 The next goal for me is to do a similar implementation for animated stuff (as in an embedded-systems-friendly GIF format). 
- - [ ] Python Library for encoding and decoding
+ - [x] Python Library for encoding and decoding
  - [x] Image Converter
 	- [x] Basic GUI implementation & preview
 	- [x] Dithering Options
