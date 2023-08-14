@@ -3,8 +3,45 @@ import numpy as np		# pip install numpy
 import PIL.Image		# pip install pillow
 
 class PIF():
-	"""
+	""" 
 	PIF Image Decoder and Encoder library
+
+	Decodes raw PIF file data into pillow images or encodes pillow 
+	images back into raw PIF data.
+
+	Attributes
+	----------
+	COLORTABLE_16C : list[int]
+		Precalculated list of the color for the RGB16C modes
+
+	COLORTABLE_OFFSET : Literal
+		Defines the end of the PIF header and the start of the
+		optional color table
+	
+	Subclasses
+	----------
+	CompressionType : Enum
+		Holds the magic numbers for the compression types
+
+	PIFType : Enum
+		Contains the magic numbers for the various PIF image types
+
+	PIFInfo : Variables
+		Class to contain various header and information about the PIF file
+
+	Methods
+	-------
+	decode(PIFData : numpy.ndarray) : tuple[PIL.Image.Image, PIFInfo]
+		Decodes the PIF image / data and returns a pillow image and file information
+	
+	encodeFile(image: PIL.Image.Image, imageType: PIFType, compression: CompressionType,
+			IndexedColorTable: None | tuple[np.ndarray, int], dithering: bool = False) -> np.ndarray:
+		Converts an pillow image to a PIF image with the given arguments
+	
+	encodePreview(image: PIL.Image.Image, imageType: PIFType, IndexedColorTable: None | tuple[np.ndarray, int],
+			dithering: bool = False) -> PIL.Image.Image:
+		Converts an pillow image with the given arguments to an pillow image to represent an accurate preview
+		of the image.
 	"""
 
 	COLORTABLE_16C = [
@@ -42,16 +79,6 @@ class PIF():
 		ImageTypeIND16  = 0x4947
 		ImageTypeIND8   = 0x4942
 
-	class InvalidHeader(Exception):
-		"""Exception raised if file header is not valid
-
-    	Attributes:
-        	None
-    	"""
-		def __init__(self, message = "Invalid or unknown PIF Header") -> None:
-			self.message = message
-			super().__init__(self.message)
-
 	class PIFInfo():
 		def __init__(self) -> None:
 			self.fileSize = None	# integer
@@ -67,9 +94,28 @@ class PIF():
 			self.rawImageData = None # numpy.ndarray, 1D
 
 	def __init__(self) -> None:
+		# Not in use
 		pass
 
 	def __decomplressRLE(rleData: np.ndarray, bitsPerPixel: int, imageSize: int) -> np.ndarray:
+		"""
+		Decompress RLE data
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+
+		Arguments
+		---------
+		rleData : np.ndarray
+			Array holding the color data to convert
+		bitsPerPixel : int
+			Amount of bits per pixel, in order to decompress the data correctly
+		imageSize : PIFInfo
+			Amount of Pixels to decode / expect
+
+		Returns : numpy.ndarray
+			Decompressed image data
+		"""
 		rleInstruction = 0
 		imageData = np.zeros(3, dtype=np.int8)
 		imagePointer = 0
@@ -137,9 +183,30 @@ class PIF():
 		# Return the decompressed image data
 		return uncompressedData
 	
-	def __convertToRGB888(rawData: np.ndarray, imageSize: int, imageInfo: PIFInfo) -> np.ndarray:
+	def __LEGACYconvertToRGB888(rawData: np.ndarray, imageSize: int, imageInfo: PIFInfo) -> np.ndarray:
+		"""
+		Convert non-RGB888 data to RGB888
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+
+		Arguments
+		---------
+		rawData : np.ndarray
+			Array holding the color data to convert
+		imageSize : int
+			Amount of Pixels in the image and thus rawData (!= len(rawData) !!)
+		imageInfo : PIFInfo
+			Data format within the rawData array
+
+		Returns : numpy.ndarray
+			Array holding the new, RGB888 color data
+		"""
+		
 		imageData = np.zeros(imageSize * 3, dtype=np.uint8)
 		imageDataPointer = 0
+
+		# Not yet sure how I can optimise / speed things up using numpy...
 
 		if (imageInfo.imageType == PIF.PIFType.ImageTypeRGB565) or (imageInfo.imageType == PIF.PIFType.ImageTypeIND16):
 			for index in range(0, len(rawData), 2):
@@ -175,7 +242,23 @@ class PIF():
 
 		return imageData
 
-	def __indexedToRGB888(rawData: np.ndarray, imageInfo: PIFInfo) -> np.ndarray:
+	def __LEGACYindexedToRGB888(rawData: np.ndarray, imageInfo: PIFInfo) -> np.ndarray:
+		"""
+		Convert indexed data to a non-indexed color array
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+
+		Arguments
+		---------
+		rawData : np.ndarray
+			Array holding the color data to convert
+		imageInfo : PIFInfo
+			Data format within the rawData array
+
+		Returns : numpy.ndarray
+			Array holding the new color data in one of the non-indexed color formats
+		"""
 		bitsperpixel = imageInfo.bitsPerPixel
 		imageSize = imageInfo.imageHeigt * imageInfo.imageWidth
 		imageData = np.zeros(imageSize * 3, dtype=np.uint8)
@@ -217,7 +300,7 @@ class PIF():
 
 		return imageData
 
-	def decode(PIFdata: np.ndarray) -> (PIL.Image.Image, PIFInfo):
+	def decode(PIFdata: np.ndarray) -> tuple[PIL.Image.Image, PIFInfo]:
 		"""Decodes a raw PIF bytearray
 
 		Decodes the PIF image header and image data itself and returns it
@@ -267,7 +350,7 @@ class PIF():
 		# Need a pure RGB888 image for further processing...
 		if (imageInfo.imageType != PIF.PIFType.ImageTypeRGB888) and ((imageInfo.imageType.value & 0xFF00) != (PIF.PIFType.ImageTypeIND16.value & 0xFF00)):
 			# Image not RGB888 AND not indexed? Convert it to RGB888
-			imageInfo.rawImageData = PIF.__convertToRGB888(imageInfo.rawImageData, imageInfo.imageHeigt * imageInfo.imageWidth, imageInfo)
+			imageInfo.rawImageData = PIF.__LEGACYconvertToRGB888(imageInfo.rawImageData, imageInfo.imageHeigt * imageInfo.imageWidth, imageInfo)
 		elif ((imageInfo.imageType.value & 0xFF00) == (PIF.PIFType.ImageTypeIND8.value & 0xFF00)):
 			# Image is Indexed!
 			# Read in the color table values 
@@ -279,10 +362,10 @@ class PIF():
 					ColTableColors = imageInfo.colorTableSize // 2
 				else:
 					ColTableColors = imageInfo.colorTableSize
-				imageInfo.colorTable = PIF.__convertToRGB888(imageInfo.colorTable, ColTableColors, imageInfo)
+				imageInfo.colorTable = PIF.__LEGACYconvertToRGB888(imageInfo.colorTable, ColTableColors, imageInfo)
 
 			# Finally convert the indexed image data to an pure RGB888 array
-			imageInfo.rawImageData = PIF.__indexedToRGB888(imageInfo.rawImageData, imageInfo)
+			imageInfo.rawImageData = PIF.__LEGACYindexedToRGB888(imageInfo.rawImageData, imageInfo)
 				
 		# Converting to HxWx3 (mostly for easy pillow integration)
 		rgbImage = np.reshape(imageInfo.rawImageData, (imageInfo.imageHeigt, imageInfo.imageWidth, -3))
@@ -295,6 +378,20 @@ class PIF():
 		return (PIL.Image.fromarray(rgbImage, 'RGB'), imageInfo)
 	
 	def __LEGACYrleCompress(pixelArray: np.ndarray):
+		"""
+		Compress image data with RLE
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+
+		Arguments
+		---------
+		pixelArray : np.ndarray
+			Array holding the color data to compress
+
+		Returns : numpy.ndarray
+			Array with the compressed image data
+		"""
 		outlist = []
 		rlePos = []
 		tempArray = [None]*129
@@ -374,6 +471,25 @@ class PIF():
 		return rlePos,outlist
 	
 	def __LEGACYconvertToPIF(image: PIL.Image.Image, conversion: PIFType, colorLength: int, colorTable: np.ndarray, dithering: bool, compression: CompressionType):
+		"""
+		Convert image to various PIF arrays
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+
+		Arguments
+		---------
+		image : PIL.Image.Image
+			Original pillow image to convert into PIF
+		conversion : PIFType
+			Conversion PIF type
+		colorLength : int
+			Length of the color Table (colors, not individual bytes/cells)
+		colorTable : numpy.ndarray
+			Color Table for the indexed modes - ignored in non-indexed image types
+		dithering : bool
+			Dithering option for non RGB888 or RGB565 options
+		"""
 		class ImageH(Enum):
 			IMAGETYPE = 0
 			BITSPERPIXEL = 1
@@ -400,15 +516,16 @@ class PIF():
 		imageHeader[ImageH.COMPRTYPE.value] = compression.value
 
 		if ((checkImageType != PIF.PIFType.ImageTypeRGB888) and (checkImageType !=  PIF.PIFType.ImageTypeRGB565)):
-			TemporaryImage = PIF.__convertImage(image, checkImageType, (colorTable, colorLength), dithering, True)
+			TemporaryImage, colorTable = PIF.__convertImage(image, checkImageType, (colorTable, colorLength), dithering, True)
 		else:
-			TemporaryImage = PIF.__convertImage(image, PIF.PIFType.ImageTypeRGB888, (colorTable, colorLength), dithering, True)
+			TemporaryImage, colorTable = PIF.__convertImage(image, PIF.PIFType.ImageTypeRGB888, (colorTable, colorLength), dithering, True)
 
 		if ((checkImageType ==  PIF.PIFType.ImageTypeIND8) or (checkImageType ==  PIF.PIFType.ImageTypeIND16) or (checkImageType ==  PIF.PIFType.ImageTypeIND24)):
 			checkImageType =  PIF.PIFType.ImageTypeIND8
 
 		imageHeader[ImageH.IMAGEWIDTH.value] = TemporaryImage.width
 		imageHeader[ImageH.IMAGEHEIGHT.value] = TemporaryImage.height
+		colorTable = colorTable[0].flatten()
 
 		match checkImageType:
 			case PIF.PIFType.ImageTypeIND8:
@@ -546,15 +663,16 @@ class PIF():
 		return imageHeader,imageColors,imageData,rlePos
 	
 	def __LEGACYsavePIFbinary(imageHeader, colorTable, imageData, rlePos):
+		"""
+		PIF arrays to a final, uint8 pif array
+
+		This function is partially or fully copied from the PIFGUI python script.
+		To optimise the speeds, it should be rewritten or reviewd at some point.
+		"""
 		tTotalPIF = []
 		tPIFHeader = [None] * 12
 		tImgHeader = [None] * 16
-		if (imageHeader[0] == 0x4942):
-			tColTable = [None] * imageHeader[5]
-		elif (imageHeader[0] == 0x4947):
-			tColTable = [None] * imageHeader[5]
-		else:
-			tColTable = [None] * imageHeader[5]
+		tColTable = [None] * imageHeader[5]
 
 		tImgData = []
 
@@ -631,9 +749,36 @@ class PIF():
 		tTotalPIF[10] = (iStart & 0xFF0000) >> 16
 		tTotalPIF[11] = (iStart & 0xFF000000) >> 24
 
-		return (np.array(tTotalPIF),iSize)
+		return (np.array(tTotalPIF, dtype=np.uint8),iSize)
 
 	def __convertImage(image: PIL.Image.Image, imageType: PIFType, ColorTableInfo: None | tuple[np.ndarray, int], dithering: bool, internal: bool) -> tuple[PIL.Image.Image, None | tuple[np.ndarray, int]]:
+		"""
+		Converts the pillow image to the corresponding color / PIF type
+
+		Converts the pillow image and limits it to the imageType colors, with the option
+		to convert it for a possible preview or for internal use. If it's not for
+		an internal use, additional factors are multiplied to the image data to scale 
+		the image correctly.
+
+		Arguments
+		---------
+		image : PIL.Image.Image
+			pillow image to convert the preview from
+		imageType : PIFType
+			PIF image type to restrict the image's color to
+		ColorTableInfo : None | (numpy.ndarray, int)
+			Color Table holding the colors and the length, if an indexed image type is requested - ignored otherwise
+		dithering : bool
+			Dithering flag for nonRGB888 / RGB565 image options
+		internal : bool
+			Whether or not an internal or preview use is wished
+		
+		Returns : (PIL.Image.Image, None | (numpy.ndarray, int))
+			Returns a tuple with the converted image at the first position
+			The second position holds either the adjusted color table and length in it's
+			own tuple if an indexed image type was requested, or it is None
+		"""
+		
 		IndexedColorTable, ColorTableLength = ColorTableInfo		
 		if ((imageType == PIF.PIFType.ImageTypeIND8) or (imageType == PIF.PIFType.ImageTypeIND16) or (imageType == PIF.PIFType.ImageTypeIND24)):
 			if ((type(ColorTableInfo) != tuple) and (type(IndexedColorTable) != np.ndarray)):
@@ -716,7 +861,7 @@ class PIF():
 			case PIF.PIFType.ImageTypeIND16:
 				# Will be similar to IND24 and RGB565
 				maskImage = PIL.Image.new('P', (16,16))
-				colorMask = np.tile(np.array([0xF8, 0xFC, 0xF8], dtype=np.uint8), (image.height, image.width, 1))
+				colorMask = np.tile(np.array([0xF8, 0xFC, 0xF8], dtype=np.uint8), (ColorTableLength, 1))
 				# Logic-AND the data with the mask
 				IndexedColorTable = np.bitwise_and(IndexedColorTable, colorMask)
 
@@ -760,6 +905,25 @@ class PIF():
 		return (imageToReturn, (IndexedColorTable, ColorTableLength))
 
 	def encodeFile(image: PIL.Image.Image, imageType: PIFType, compression: CompressionType, IndexedColorTable: None | tuple[np.ndarray, int], dithering: bool = False) -> np.ndarray:
+		""" Converts the image to the PIF format
+
+		Converts an pillow image to an image in the PIF format and PIFType.
+		Compresses the image optionally and takes an optional ColorTable tuple.
+
+		Parameters:
+			image : PIL.Image.Image
+				Image to convert / get the preview of
+			imageType : PIF.PIFType
+				PIF Type to convert the image into
+			IndexedColorTable : None or (np.ndarray, int)
+				If the image type is not indexed, None is expected
+				Otherwise a tuple containing a [R,G,B] numpy array and the amount of colors
+			dithering : bool
+				Enable dithering, doesn't work for ImageTypeRGB888 or ImageTypeRGB565
+		
+		Returns : numpy.ndarray
+			PIF data within an numpy array, which can be saved using .tofile(path)
+		"""
 		if not type(IndexedColorTable) == None:
 			ColorIndexLength = IndexedColorTable[1]
 			ColorIndexTable = IndexedColorTable[0]
@@ -794,15 +958,3 @@ class PIF():
 		"""
 		imageToReturn,_ = PIF.__convertImage(image, imageType, IndexedColorTable, dithering, internal=False)
 		return imageToReturn
-
-"""
-Decode Test
-a = np.fromfile('/root/Programming/PIF-Image-Format/test_images/Lenna/Lenna_RGB888.pif', dtype=np.uint8)
-image, info = PIF.decode(a)
-img = Image.fromarray(image, 'RGB')
-img.save('te123st.bmp')
-"""
-
-a = PIL.Image.open('test_images/Lenna/Lenna.bmp')
-b = PIF.encodePreview(a, PIF.PIFType.ImageTypeIND8, (np.array([[123,132,12],[255,255,255],[0,0,0]], dtype=np.uint8), 3))
-b.save('test.bmp')
