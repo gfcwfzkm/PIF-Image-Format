@@ -20,7 +20,7 @@
 #include <stddef.h>
 
 /** Incremental 16bit versioning number*/
-#define PIF_VERSION_NUMBER	0x0002
+#define PIF_VERSION_NUMBER	0x0003
 
 /** Choose to embed a RGB888 lookup table for the RGB16C colors. */
 //#define	PIF_RGB16C_RGB888

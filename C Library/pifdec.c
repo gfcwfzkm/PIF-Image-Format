@@ -652,6 +652,7 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 					break;
 				default:
 					// Nothing to do
+					break;
 			}
 			break;
 		case PIF_TYPE_RGB565:
@@ -681,6 +682,7 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 					break;
 				default:
 					// Nothing to do
+					break;
 			}
 			break;
 		case PIF_TYPE_RGB332:
@@ -701,6 +703,7 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 					break;
 				default:
 					// Nothing to do
+					break;
 			}
 			break;
 		default:
