@@ -709,6 +709,7 @@ uint32_t convertColor(uint32_t color, pifImageType sourceType, pifImageType targ
 		default:
 			// BW and RGB16 Conversion not supported, as the user
 			// can configure the fitting pixel type in the header
+            break;
 	}
 
 	return outColor;
